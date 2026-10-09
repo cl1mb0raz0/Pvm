@@ -425,6 +425,7 @@ th.select, td.select { width: 28px; padding-right: 0; }
 .prio-1 { background: var(--sev-critical); color: #fff; }
 .prio-2 { background: var(--sev-high); }
 .prio-3 { background: var(--sev-medium); }
+.prio-score { color: var(--text-muted); font: 11px var(--font-mono); margin-left: 2px; }
 .prio-4 { background: transparent; color: var(--text-muted); box-shadow: inset 0 0 0 1px var(--border); }
 .epss { margin-top: 2px; font: 11px var(--font-mono); color: var(--text-muted); cursor: help; }
 
