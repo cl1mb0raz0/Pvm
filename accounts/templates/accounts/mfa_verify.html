@@ -1,0 +1,21 @@
+{% extends "auth.html" %}
+
+{% block title %}Verify{% endblock %}
+
+{% block content %}
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% if form.token.errors %}
+    <ul class="errors">{% for error in form.token.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+  {% endif %}
+  {# Authenticator code or backup code; the placeholder is the only hint. #}
+  <input class="token-input" type="text" name="token" placeholder="Code" aria-label="Authenticator or Backup Code" autocomplete="one-time-code" autocapitalize="off" spellcheck="false" autofocus required>
+  <input type="hidden" name="next" value="{{ next }}">
+  <button class="btn btn-block" type="submit">Verify</button>
+</form>
+
+<form method="post" action="{% url 'accounts:logout' %}" style="margin-top: 16px">
+  {% csrf_token %}
+  <button class="btn-link" type="submit">Another One</button>
+</form>
+{% endblock %}

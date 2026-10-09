@@ -1,0 +1,38 @@
+{% extends "app.html" %}
+
+{% block title %}Import Report{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="muted" style="font-size: 12.5px"><a href="{% url 'core:import_list' %}">Imports</a> / New</div>
+    <h1 style="margin-top: 4px">Import a Qualys Report</h1>
+    <p>Step 1 of 2: Upload the CSV. Next You Choose Which of Its Columns to Import.</p>
+  </div>
+</div>
+
+<section class="card" style="max-width: 640px">
+  <form class="card-body stack" method="post" enctype="multipart/form-data" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}<ul class="errors">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+    <label class="field">
+      Report File (.csv)
+      <input type="file" name="report" accept=".csv,.txt,text/csv" required>
+      {% for e in form.report.errors %}<span class="field-error">{{ e }}</span>{% endfor %}
+      <span class="hint">{{ form.report.help_text }}</span>
+    </label>
+    <label class="field">
+      Name
+      <input type="text" name="name" value="{{ form.name.value|default:'' }}" maxlength="100" placeholder="e.g. Internal Alpha">
+      <span class="hint">{{ form.name.help_text }}</span>
+    </label>
+    <label class="field">
+      Scan Date
+      <input type="date" name="scan_date" value="{{ form.scan_date.value|date:'Y-m-d'|default:form.scan_date.value }}" required>
+      {% for e in form.scan_date.errors %}<span class="field-error">{{ e }}</span>{% endfor %}
+      <span class="hint">{{ form.scan_date.help_text }}</span>
+    </label>
+    <div><button class="btn" type="submit">Upload and Read Columns</button></div>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "app.html" %}
+
+{% block title %}Account{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Account</h1>
+    <p>Your Profile and Two-Factor Authentication.</p>
+  </div>
+</div>
+
+<div class="grid-2">
+  <section class="card">
+    <div class="card-head"><h2>Profile</h2></div>
+    <div class="card-body">
+      <dl class="dl">
+        <dt>Username</dt><dd>{{ user.username }}</dd>
+        <dt>Email</dt><dd>{{ user.email }}</dd>
+        <dt>Role</dt><dd>{{ user.get_role_display }}</dd>
+        <dt>Team</dt><dd>{{ user.team|default:"—" }}</dd>
+      </dl>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Two-Factor Authentication</h2></div>
+    <div class="card-body stack">
+      {% if has_totp %}
+        <div>
+          <span class="badge st-resolved">Enabled</span>
+          <span class="muted" style="margin-left: 8px">Since {{ user.mfa_confirmed_at|date:"j M Y" }}</span>
+        </div>
+        <div>
+          <strong>{{ backup_codes_left }}</strong> Backup Code{{ backup_codes_left|pluralize }} Left.
+          <span class="muted">Generating a New Set Invalidates the Old One.</span>
+        </div>
+        <form method="post" action="{% url 'accounts:regenerate_backup_codes' %}">
+          {% csrf_token %}
+          <button class="btn btn-ghost" type="submit">Generate New Backup Codes</button>
+        </form>
+      {% else %}
+        <div><span class="badge st-still_open">Not Set Up</span></div>
+        <p class="muted" style="margin: 0">Optional for Read-Only Users, Recommended for Everyone.</p>
+        <div><a class="btn" href="{% url 'accounts:mfa_enroll' %}">Set Up Now</a></div>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

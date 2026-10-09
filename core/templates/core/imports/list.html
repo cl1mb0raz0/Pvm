@@ -1,0 +1,83 @@
+{% extends "app.html" %}
+{% load pvm %}
+
+{% block title %}Imports{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>History</h1>
+    <p>Every Qualys Report Loaded into Pvm, Manual or Automatic. The Original File Is Kept for Each One.</p>
+  </div>
+  <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap">
+    {% include "core/partials/perimeter_tabs.html" %}
+    {% if user|can_edit %}<a class="btn" href="{% url 'core:import_upload' %}">Import Report</a>{% endif %}
+  </div>
+</div>
+
+<section class="card">
+  <form class="filters" method="get">
+    <label class="field field-grow">
+      Name or File
+      <input type="search" name="q" value="{{ q }}" placeholder="e.g. Internal Alpha">
+    </label>
+    {% if perimeter %}<input type="hidden" name="perimeter" value="{{ perimeter }}">{% endif %}
+    {% if sort %}<input type="hidden" name="sort" value="{{ sort }}"><input type="hidden" name="dir" value="{{ dir }}">{% endif %}
+    <button class="btn btn-ghost" type="submit">Search</button>
+  </form>
+  {% if page.object_list %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            {% for h in headers %}
+              <th class="sortable{% if h.numeric %} num{% endif %}" {% if h.active %}aria-sort="{% if h.dir == 'asc' %}ascending{% else %}descending{% endif %}"{% endif %}>
+                <a href="{{ h.url }}" title="Sort by {{ h.label|lower }}">{{ h.label }}<span class="sort-arrow" aria-hidden="true">{% if h.active %}{% if h.dir == "asc" %}▲{% else %}▼{% endif %}{% else %}↕{% endif %}</span></a>
+              </th>
+            {% endfor %}
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for imp in page.object_list %}
+            <tr>
+              <td class="mono"><a href="{% url 'core:import_detail' imp.pk %}">{{ imp.pk }}</a></td>
+              <td>{% if imp.name %}<a href="{% url 'core:import_detail' imp.pk %}">{{ imp.name }}</a>{% else %}<span class="muted">—</span>{% endif %}{% with tags=imp.tags.all %}{% if tags %}<div>{% include "core/partials/tag_chips.html" %}</div>{% endif %}{% endwith %}</td>
+              <td class="mono nowrap">{{ imp.started_at|date:"Y-m-d H:i" }}</td>
+              <td>{% include "core/partials/perimeter_badge.html" with perimeter=imp.perimeter %}</td>
+              <td><span class="badge src-{{ imp.source }}">{{ imp.get_source_display }}</span></td>
+              <td class="mono title-cell"><span title="{{ imp.original_filename }}">{{ imp.original_filename|default:"—" }}</span></td>
+              <td class="mono nowrap">{{ imp.scanned_at|date:"Y-m-d"|default:"—" }}</td>
+              <td>{{ imp.triggered_by.username|default:"—" }}</td>
+              <td><span class="badge imp-{{ imp.status }}">{% if imp.status == "pending" and imp.source == "manual" %}Awaiting Columns{% else %}{{ imp.get_status_display }}{% endif %}</span></td>
+              <td class="num">{{ imp.findings_count }}</td>
+              <td class="nowrap" style="text-align: right">
+                {% if imp.status == "downloading" or imp.status == "parsing" %}
+                  {% if user|can_edit %}
+                    <form method="post" action="{% url 'core:import_stop' imp.pk %}"
+                          onsubmit="return confirm('Stop This Import? What It Has Started to Write Is Rolled Back, and Nothing Is Imported.')">
+                      {% csrf_token %}<input type="hidden" name="from" value="list">
+                      <button class="btn-link" type="submit" style="color: var(--sev-critical)">Stop</button>
+                    </form>
+                  {% endif %}
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if page.has_other_pages %}
+      <div class="results-meta">
+        <span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+        <nav class="pager">
+          {% if page.has_previous %}<a href="?{% if perimeter %}perimeter={{ perimeter }}&amp;{% endif %}{% if q %}q={{ q|urlencode }}&amp;{% endif %}{% if sort %}sort={{ sort }}&amp;dir={{ dir }}&amp;{% endif %}page={{ page.previous_page_number }}">← Previous</a>{% endif %}
+          {% if page.has_next %}<a href="?{% if perimeter %}perimeter={{ perimeter }}&amp;{% endif %}{% if q %}q={{ q|urlencode }}&amp;{% endif %}{% if sort %}sort={{ sort }}&amp;dir={{ dir }}&amp;{% endif %}page={{ page.next_page_number }}">Next →</a>{% endif %}
+        </nav>
+      </div>
+    {% endif %}
+  {% else %}
+    <div class="empty">{% if q %}No Imports Match “{{ q }}”.{% else %}No Imports Yet.{% endif %}</div>
+  {% endif %}
+</section>
+{% endblock %}

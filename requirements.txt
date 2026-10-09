@@ -1,0 +1,14 @@
+Django==5.1.4
+psycopg2-binary==2.9.10
+django-otp==1.5.4
+qrcode==8.0
+Pillow==11.0.0
+gunicorn==23.0.0
+celery==5.4.0
+redis==5.2.1
+whitenoise==6.8.2
+paramiko==5.0.0
+weasyprint==62.3
+# WeasyPrint 62 writes PDFs through pydyf's old API: 0.11 changed it and
+# every PDF fails with "'super' object has no attribute 'transform'".
+pydyf==0.10.0

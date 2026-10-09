@@ -1,0 +1,50 @@
+{% extends "app.html" %}
+
+{% block title %}Restore Backup #{{ backup.pk }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="muted" style="font-size: 12.5px"><a href="{% url 'backups:list' %}">Backups</a> / #{{ backup.pk }}</div>
+    <h1 style="margin-top: 4px">Restore Backup #{{ backup.pk }}</h1>
+    <p>Taken {{ backup.created_at|date:"j M Y, H:i:s" }}{% if backup.created_by %} by {{ backup.created_by }}{% endif %}{% if backup.note %}: {{ backup.note }}{% endif %}.</p>
+  </div>
+</div>
+
+<section class="card card-body stack" style="max-width: 760px">
+  <div class="verification" style="border-left-color: var(--sev-critical); margin: 0">
+    <p style="margin: 0; white-space: normal"><strong>All Pvm Data Goes Back to How It Was at That Moment</strong>: Hosts, Findings, Imports, Triage, Users and Their MFA Devices{% if backup.full %}, and the Raw Qualys Report Files Are Replaced with the Ones This Full Backup Holds{% endif %}. Everything Done After It Is Removed. The Current State Is Backed Up Automatically First (in the Same {% if backup.full %}Full{% else %}Regular{% endif %} Form), so This Restore Can Itself Be Undone.</p>
+  </div>
+
+  <div>
+    <strong>Imports That Will Disappear</strong>
+    {% if later_imports %}
+      <ul style="margin: 6px 0 0; padding-left: 18px">
+        {% for imp in later_imports %}
+          <li><a href="{% url 'core:import_detail' imp.pk %}">#{{ imp.pk }}</a> <span class="mono">{{ imp.original_filename|default:imp.get_source_display }}</span>, {{ imp.started_at|date:"Y-m-d H:i" }} ({{ imp.get_status_display|lower }})</li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted" style="margin: 6px 0 0">None.</p>
+    {% endif %}
+  </div>
+
+  <div class="muted" style="font-size: 12.5px">
+    The Backup Contains {{ backup.contents.hosts }} Hosts, {{ backup.contents.findings }} Findings, {{ backup.contents.imports }} Imports and {{ backup.contents.users }} User{{ backup.contents.users|pluralize }}{% if backup.full %} and {{ backup.contents.report_files }} Report Folder{{ backup.contents.report_files|pluralize }}{% endif %}.
+    You May Have to Sign In Again Afterwards.
+  </div>
+
+  <form method="post" class="stack" style="gap: 12px">
+    {% csrf_token %}
+    {% if error %}<ul class="errors"><li>{{ error }}</li></ul>{% endif %}
+    <label class="field">
+      Type {{ confirmation }} to Confirm
+      <input type="text" name="confirm" autocomplete="off" required style="max-width: 240px">
+    </label>
+    <div style="display: flex; gap: 8px">
+      <button class="btn" type="submit" style="background: var(--sev-critical); color: #fff">Restore This Backup</button>
+      <a class="btn btn-ghost" href="{% url 'backups:list' %}">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

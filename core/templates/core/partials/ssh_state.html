@@ -1,0 +1,5 @@
+{% if host.ssh_state == "running" %}<span class="spinner" aria-hidden="true"></span> Asking…
+{% elif host.ssh_state == "done" %}<span class="badge st-resolved">Read</span>{% if host.ssh_error %} <span class="muted" style="font-size: 12.5px">{{ host.ssh_error }}</span>{% endif %}
+{% elif host.ssh_state == "host_key" %}<span class="badge sev-medium">Confirm Host Key</span>
+{% elif host.ssh_state == "failed" %}<span class="badge sev-critical">Failed</span> <span class="muted" style="font-size: 12.5px">{{ host.ssh_error }}</span>
+{% else %}<span class="muted">—</span>{% endif %}

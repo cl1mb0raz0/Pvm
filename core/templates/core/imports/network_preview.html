@@ -1,0 +1,142 @@
+{% extends "app.html" %}
+
+{% block title %}Mapping Preview{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="muted" style="font-size: 12.5px"><a href="{% url 'core:import_list' %}">Imports</a> / <a href="{% url 'core:network_mapping' %}">Mapping</a></div>
+    <h1 style="margin-top: 4px">Analysis: <span class="mono" style="font-size: 20px">{{ filename }}</span></h1>
+    <p>Nothing Has Changed Yet.</p>
+  </div>
+</div>
+
+<section class="card card-body stack" style="margin-bottom: 16px; gap: 10px">
+  <div class="reading">
+    <h2>{{ reading.label }}</h2>
+    {% if reading.confidence %}<span class="muted" style="font-size: 12.5px">{{ reading.confidence }}% Certain</span>{% endif %}
+    {% if reading.can_import %}<span class="badge st-resolved">Can Be Imported</span>{% else %}<span class="badge sev-critical">Cannot Be Imported Here</span>{% endif %}
+  </div>
+  <ul class="reading-reasons muted">{% for r in reading.reasons %}<li>{{ r }}</li>{% endfor %}</ul>
+  {% if reading.problem %}<div class="verdict notice-danger">{{ reading.problem }}{% if reading.kind == "qualys_report" %} <a href="{% url 'core:import_upload' %}">New Import</a>{% endif %}</div>{% endif %}
+  {% if verdict %}<div class="verdict {% if useful %}verdict-useful{% else %}verdict-idle{% endif %}"><strong>{{ verdict }}</strong></div>{% endif %}
+  {% for w in reading.data.warnings %}<div class="verdict notice-danger" style="font-size: 12.5px">{{ w }}</div>{% endfor %}
+  {% if others %}
+    <details class="scanner-details">
+      <summary>Also Considered</summary>
+      <ul class="reading-reasons muted">{% for o in others %}<li>{{ o.label }} ({{ o.confidence }}%){% if o.problem %}: {{ o.problem }}{% endif %}</li>{% endfor %}</ul>
+    </details>
+  {% endif %}
+</section>
+
+{% if not reading.can_import %}
+  <div><a class="btn btn-ghost" href="{% url 'core:network_mapping' %}">Back</a></div>
+{% else %}
+<form method="post" action="{% url 'core:network_mapping_apply' %}">
+  {% csrf_token %}
+  <input type="hidden" name="payload" value="{{ payload }}">
+  <input type="hidden" name="filename" value="{{ filename }}">
+
+  {% if reading.kind == "a10" %}
+    <section class="card">
+      <div class="filters triage-bar">
+        <span class="muted" style="align-self: center; font-size: 13px">
+          {{ plan.counts.new }} New, {{ plan.counts.changed }} Changed, {{ plan.counts.same }} Already Set · {{ plan.new_vips|length }} VIP{{ plan.new_vips|length|pluralize }} to Mark · {{ plan.unused_rules|length }} Name Rule{{ plan.unused_rules|length|pluralize }} without a Host Yet
+          {% if plan.stored %}· Replaces the Stored {{ plan.stored.name }} Configuration ({{ plan.stored.uploaded_at|date:"j M Y" }}){% endif %}
+        </span>
+        <button class="btn" type="submit" style="margin-left: auto">Apply{% if plan.changes %} to {{ plan.changes }} Host{{ plan.changes|pluralize }}{% endif %}</button>
+        <a class="btn btn-ghost" href="{% url 'core:network_mapping' %}">Cancel</a>
+      </div>
+      {% if plan.hosts %}
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Pvm Host</th><th>Scanned IP</th><th>How</th><th>Real Servers</th><th>Now</th><th>Result</th></tr></thead>
+            <tbody>
+              {% for h in plan.hosts %}
+                <tr>
+                  <td><a href="{% url 'core:host_detail' h.host.pk %}?tab=network">{{ h.host.hostname }}</a></td>
+                  <td class="mono">{{ h.host.ip_address }}</td>
+                  <td class="muted" style="font-size: 12.5px">{{ h.how }}</td>
+                  <td class="ip-list">{{ h.target|join:", " }}</td>
+                  <td class="ip-list muted">{{ h.current|join:", "|default:"—" }}</td>
+                  <td>
+                    {% if h.status == "new" %}<span class="badge st-resolved">Private IP Set</span>
+                    {% elif h.status == "changed" %}<span class="badge sev-medium">Private IP Changed</span>
+                    {% else %}<span class="muted">Already Set</span>{% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty">No Pvm Host Is Behind This Balancer Yet: Its Name Rules and VIPs Are Kept for Hosts of Later Scans.</div>
+      {% endif %}
+      {% if plan.new_vips %}
+        <div class="card-body" style="border-top: 1px solid var(--border)">
+          <strong>VIPs to Mark as Load Balancer</strong>
+          <div class="ip-list muted" style="margin-top: 4px">{% for v in plan.new_vips %}{{ v.ip }} ({{ v.name }}){% if not forloop.last %}, {% endif %}{% endfor %}</div>
+        </div>
+      {% endif %}
+      {% if plan.unused_rules %}
+        <div class="card-body" style="border-top: 1px solid var(--border)">
+          <details class="scanner-details">
+            <summary>{{ plan.unused_rules|length }} Name Rule{{ plan.unused_rules|length|pluralize }} Match No Pvm Host Yet (Kept)</summary>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Rule</th><th>VIP</th><th>Pool</th><th>Real Servers</th></tr></thead>
+                <tbody>
+                  {% for r in plan.unused_rules %}
+                    <tr><td class="mono">{{ r.match }} {{ r.pattern }}</td><td class="mono muted">{{ r.vip_name|default:"—" }}{% if r.vip_ip %} {{ r.vip_ip }}:{{ r.port }}{% endif %}</td><td class="mono">{{ r.service_group }}</td><td class="ip-list">{{ r.backend_ips|join:", " }}</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        </div>
+      {% endif %}
+    </section>
+  {% else %}
+    <section class="card">
+      <div class="filters triage-bar">
+        <span class="muted" style="align-self: center; font-size: 13px">{{ counts.new }} New, {{ counts.changed }} Changed, {{ counts.same }} Already Set, {{ counts.no_host }} without a Host Yet, {{ counts.error }} Invalid</span>
+        <label class="choice" style="align-self: center"><input type="checkbox" name="mark_balancer" value="1"> <span>Also Mark These Public IPs as a Load Balancer, Named</span></label>
+        <label class="field"><input type="text" name="balancer_name" value="A10" maxlength="100" aria-label="Load Balancer Name"></label>
+        <button class="btn" type="submit" style="margin-left: auto">Apply{% if hosts_to_change %} to {{ hosts_to_change }} Host{{ hosts_to_change|pluralize }}{% endif %}</button>
+        <a class="btn btn-ghost" href="{% url 'core:network_mapping' %}">Cancel</a>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Line</th><th>Public IP</th><th>DNS Hostname</th><th>Private IP</th><th>Pvm Host</th><th>Result</th></tr></thead>
+          <tbody>
+            {% for r in rows %}
+              <tr>
+                <td class="mono muted">{{ r.line }}</td>
+                <td class="mono">{{ r.public_ip }}</td>
+                <td class="mono">{{ r.hostname|default:"—" }}</td>
+                <td class="mono">{{ r.private_ip }}</td>
+                <td>
+                  {% for c in r.hosts %}
+                    <a href="{% url 'core:host_detail' c.host.pk %}?tab=network">{{ c.host.hostname }}</a>
+                    {% if c.how %}<div class="muted" style="font-size: 12px">{{ c.how }}: <span class="mono">{{ c.target|join:", " }}</span></div>{% endif %}
+                    {% if c.current and c.current != c.target %}<span class="muted mono" style="font-size: 12px">(Now {{ c.current|join:", " }})</span>{% endif %}
+                    {% if not forloop.last %}<br>{% endif %}
+                  {% empty %}<span class="muted">—</span>{% endfor %}
+                </td>
+                <td>
+                  {% if r.status == "new" %}<span class="badge st-resolved">Private IP Set</span>
+                  {% elif r.status == "changed" %}<span class="badge sev-medium">Private IP Changed</span>
+                  {% elif r.status == "same" %}<span class="muted">Already Set</span>
+                  {% elif r.status == "no host" %}<span class="muted" title="Kept: Applied When This Host Appears in an Import">No Host Yet (Kept)</span>
+                  {% else %}<span class="badge sev-critical">Invalid</span> <span class="muted" style="font-size: 12px">{{ r.error }}</span>{% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+</form>
+{% endif %}
+{% endblock %}

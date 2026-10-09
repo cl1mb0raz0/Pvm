@@ -1,0 +1,116 @@
+{% extends "app.html" %}
+{% load pvm %}
+
+{% block title %}Qualys Scans{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Qualys Scans</h1>
+    <p>The Finished Scans of Your Qualys Subscription. Nothing Is Imported Unless You Choose It, Now or with an Automatic Import You Set Up.</p>
+  </div>
+</div>
+
+<section class="card">
+
+  {% if not configured %}
+    <div class="card-body notice-danger" style="border: 0">
+      <strong>The Qualys API Is Not Configured.</strong>
+      <span class="muted">Set QUALYS_API_URL, QUALYS_USERNAME and QUALYS_PASSWORD in .env, Then Recreate the Containers.</span>
+    </div>
+  {% else %}
+    {% if rules %}
+      <div class="card-head" style="border-bottom: 0"><h2>Automatic Imports</h2><span class="muted" style="font-size: 12.5px">Times in {{ zone }}</span></div>
+      <div class="rule-list">
+        {% for r in rules %}
+          <div class="rule-row">
+            <div class="grow">
+              <div class="scan-title">{{ r.scan_title }}</div>
+              <div class="muted" style="font-size: 12.5px">
+                {{ r.schedule_label }} · {% include "core/partials/perimeter_badge.html" with perimeter=r.perimeter %}{% with tags=r.tags.all %}{% if tags %} · {% include "core/partials/tag_chips.html" %}{% endif %}{% endwith %}
+              </div>
+            </div>
+            <div style="font-size: 12.5px">
+              {% if r.enabled %}<span class="badge st-resolved">Active</span> <span class="muted">Next: {{ r.next_run_at|date:"D j M, H:i" }}</span>{% else %}<span class="badge st-still_open">Paused</span>{% endif %}
+              {% if r.last_run_at %}<div class="muted">Last: {{ r.last_run_at|date:"j M H:i" }} · {{ r.last_result }}</div>{% endif %}
+            </div>
+            {% if user|can_manage_settings %}
+              <div style="display: flex; gap: 10px">
+                <a href="{% url 'core:qualys_rule_edit' r.pk %}">Edit</a>
+                <form method="post" action="{% url 'core:qualys_rule_toggle' r.pk %}">{% csrf_token %}<button class="btn-link" type="submit">{% if r.enabled %}Pause{% else %}Resume{% endif %}</button></form>
+                <form method="post" action="{% url 'core:qualys_rule_delete' r.pk %}" onsubmit="return confirm('Delete the Automatic Import of This Scan? Imports Already Made Are Kept.')">{% csrf_token %}<button class="btn-link" type="submit" style="color: var(--sev-critical)">Delete</button></form>
+              </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <form class="filters" method="get" style="{% if rules %}border-top: 1px solid var(--border){% endif %}">
+      <label class="field field-grow">
+        Scan Title, Target or Asset Group
+        <input type="search" name="q" value="{{ q }}" placeholder="e.g. Internal Alpha or 10.0.4.11">
+      </label>
+      <label class="field">
+        Launched in the Last
+        <select name="days" onchange="this.form.submit()">
+          {% for d in day_choices %}<option value="{{ d }}" {% if d == days %}selected{% endif %}>{{ d }} Days</option>{% endfor %}
+        </select>
+      </label>
+      {% if sort %}<input type="hidden" name="sort" value="{{ sort }}"><input type="hidden" name="dir" value="{{ dir }}">{% endif %}
+      <button class="btn btn-ghost" type="submit" title="Search the List Already in Pvm; Qualys Is Not Asked">Search</button>
+      <button class="btn {% if listed %}btn-ghost{% endif %}" type="submit" name="refresh" value="1" title="Ask Qualys for the List of Finished Scans">{% if listed %}Refresh from Qualys{% else %}Ask Qualys{% endif %}</button>
+    </form>
+
+    {% if error %}
+      <div class="card-body notice-danger" style="border: 0"><strong>Qualys Could Not Be Reached.</strong> <span class="muted">{{ error }}</span></div>
+    {% endif %}
+    {% if not listed %}
+      <div class="empty">
+        Pvm Has Not Asked Qualys Yet. Click “Ask Qualys” to List the Scans Finished in the Last {{ days }} Days.
+        <div class="muted" style="margin-top: 6px; font-size: 12.5px">Opening, Searching and Sorting This Page Never Call the Qualys API.</div>
+      </div>
+    {% elif scans %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              {% for h in headers %}
+                <th class="sortable{% if h.numeric %} num{% endif %}" {% if h.active %}aria-sort="{% if h.dir == 'asc' %}ascending{% else %}descending{% endif %}"{% endif %}>
+                  <a href="{{ h.url }}" title="Sort by {{ h.label|lower }}">{{ h.label }}<span class="sort-arrow" aria-hidden="true">{% if h.active %}{% if h.dir == "asc" %}▲{% else %}▼{% endif %}{% else %}↕{% endif %}</span></a>
+                </th>
+              {% endfor %}
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in scans %}
+              <tr>
+                <td class="mono nowrap">{{ s.launched_at|date:"Y-m-d H:i" }}</td>
+                <td>
+                  <div class="scan-title">{{ s.title }}</div>
+                  <div class="muted" style="font-size: 12px">{{ s.option_profile }}{% if s.asset_groups %} · {{ s.asset_groups|join:", "|truncatechars:80 }}{% endif %}</div>
+                  {% if s.matched_targets %}<div class="mono muted" style="font-size: 12px">Target: {{ s.matched_targets|join:", "|truncatechars:60 }}</div>{% endif %}
+                  {% if s.rule %}<div style="font-size: 12px; margin-top: 2px"><span class="badge src-api">Automatic</span> <span class="muted">{{ s.rule.schedule_label }}{% if not s.rule.enabled %} (Paused){% endif %}</span></div>{% endif %}
+                </td>
+                <td>{% if s.perimeter_guess == "external" %}<span class="badge per-external">External</span>{% elif s.perimeter_guess == "internal" %}<span class="badge per-default">Internal</span>{% else %}<span class="muted" title="Private and Public Targets Mixed">Mixed</span>{% endif %}</td>
+                <td class="muted">{{ s.type }}</td>
+                <td class="num" title="{{ s.targets }}">{{ s.target_count }}</td>
+                <td class="mono muted">{{ s.duration }}</td>
+                <td>{% if s.import_pk %}<a href="{% url 'core:import_detail' s.import_pk %}">Import #{{ s.import_pk }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
+                <td class="nowrap" style="text-align: right">
+                  {% if not s.import_pk %}<a class="btn btn-sm" href="{% url 'core:qualys_import' %}?ref={{ s.ref|urlencode }}">Import</a>{% endif %}
+                  {% if not s.rule and user|can_manage_settings %}<a class="btn btn-ghost btn-sm" href="{% url 'core:qualys_rule_new' %}?title={{ s.title|urlencode }}" title="Import This Scan Automatically When It Runs, Weekly or Monthly">Import Automatically</a>{% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="results-meta"><span>{{ scans|length }} Scan{{ scans|length|pluralize }} · Asked Qualys at {{ fetched_at|date:"H:i" }}{% if excluded_prefixes %} · Not Listed: Titles Starting with {% for p in excluded_prefixes %}<span class="mono">{{ p }}</span>{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}</span></div>
+    {% else %}
+      <div class="empty">{% if q %}No Finished Scan in the List Matches “{{ q }}” by Title, Target or Asset Group.{% else %}No Finished Scans in the Last {{ days }} Days.{% endif %}</div>
+    {% endif %}
+  {% endif %}
+</section>
+{% endblock %}

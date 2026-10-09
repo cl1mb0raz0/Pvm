@@ -1,0 +1,144 @@
+{% load pvm %}
+{# Ubuntu tracker, Rocky errata, or (Windows) Qualys Patch Management check bar; polls itself while a check runs. #}
+<div class="check-bar" {% if check_running %}hx-get="?tab=vulnerabilities" hx-trigger="every 3s" hx-target="#tab-panel"{% endif %}>
+  <div>
+    {% if host.is_windows %}
+      <strong>Qualys Patch Management Check</strong>
+      <span class="muted">
+        · Checked from <a href="{% url 'core:qualys_pm' %}">Imports &gt; Qualys Pm</a> ("Search Qualys Pm"), for Every Windows Host at Once
+        {% if pm_last_checked %}· Last Checked {{ pm_last_checked|date:"j M Y, H:i" }}{% endif %}
+      </span>
+    {% elif host.is_rocky %}
+      <strong>Rocky Linux Errata Check</strong>
+      <span class="muted">
+        {% if not host.rocky_release %}
+          · Set the Rocky Linux Release and Installed Packages in the <a href="?tab=packages" hx-get="?tab=packages" hx-target="#tab-panel" hx-push-url="true">Installed Packages</a> Tab to Check Findings Against Rocky's Errata.
+        {% else %}
+          · {{ host.get_rocky_release_display }} · {{ package_count }} Package{{ package_count|pluralize }} Known
+          {% if check_running %}· <span class="spinner" aria-hidden="true"></span> Checking…{% if host.patch_check_total %} {{ host.patch_check_done }} of {{ host.patch_check_total }} CVEs Read from Rocky's Errata{% endif %}
+          {% elif host.patch_check_state == "failed" %}· <span style="color: var(--sev-critical)">Last Check Failed: {{ host.patch_check_error }}</span>
+          {% elif host.patch_checked_at %}· Last Checked {{ host.patch_checked_at|date:"j M Y, H:i" }}{% endif %}
+        {% endif %}
+      </span>
+    {% else %}
+      <strong>Ubuntu Security Tracker Check</strong>
+      <span class="muted">
+        {% if not host.ubuntu_release %}
+          · Set the Ubuntu Release and Installed Packages in the <a href="?tab=packages" hx-get="?tab=packages" hx-target="#tab-panel" hx-push-url="true">Installed Packages</a> Tab to Check Findings Against the Tracker.
+        {% else %}
+          · {{ host.get_ubuntu_release_display }} · {{ package_count }} Package{{ package_count|pluralize }} Known
+          {% if check_running %}· <span class="spinner" aria-hidden="true"></span> Checking…{% if host.patch_check_total %} {{ host.patch_check_done }} of {{ host.patch_check_total }} CVEs Read from the Tracker{% endif %}
+          {% elif host.patch_check_state == "failed" %}· <span style="color: var(--sev-critical)">Last Check Failed: {{ host.patch_check_error }}</span>
+          {% elif host.patch_checked_at %}· Last Checked {{ host.patch_checked_at|date:"j M Y, H:i" }}{% endif %}
+        {% endif %}
+      </span>
+    {% endif %}
+  </div>
+  {% if user|can_edit and not check_running %}
+    <div style="display: flex; gap: 8px">
+      {% if fixed_to_confirm %}
+        <form method="post" action="{% url 'core:host_confirm_all_fixed' host.pk %}" onsubmit="return confirm('Confirm {{ fixed_to_confirm }} Finding{{ fixed_to_confirm|pluralize }} as Fixed by the Installed Version and Resolve Them?')">
+          {% csrf_token %}<button class="btn" type="submit">Confirm All Fixed ({{ fixed_to_confirm }})</button>
+        </form>
+      {% endif %}
+      {% if host.ubuntu_release or host.rocky_release %}
+        <form method="post" action="{% url 'core:host_run_check' host.pk %}">
+          {% csrf_token %}<button class="btn btn-ghost" type="submit">Check Now</button>
+        </form>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+
+{% with selectable=user|can_edit %}
+{% if findings %}
+  {% if selectable %}{% include "core/partials/triage_bar.html" with all_count=open_count all_label="Open Findings of This Host" triage_filters=host_filter %}{% endif %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr>{% if selectable %}<th class="select"><input type="checkbox" aria-label="Select All on This Page" onclick="document.querySelectorAll('input[name=finding]').forEach(c => c.checked = this.checked)"></th>{% endif %}{% include "core/partials/sortable_headers.html" %}</tr></thead>
+      <tbody>
+        {% for f in findings %}
+          {% include "core/partials/finding_row.html" with show_port=True selectable=selectable %}
+          {% with check=f.patch_check v=f.distro_verification %}
+          {% if check or v or f.detection_result or f.extra_data or f.history %}
+            <tr class="verification-row">
+              <td colspan="{% if selectable %}13{% else %}12{% endif %}">
+                {% if check and not f.is_resolved or check and v %}
+                  <div class="patch-check">
+                    <header>
+                      <span class="badge {{ check.verdict|verdict_class }}">{{ check.get_verdict_display }}</span>
+                      {% if check.source == "qualys_pm" %}<span class="muted">Qualys Patch Management, Checked {{ check.checked_at|date:"j M H:i" }}</span>
+                      {% elif check.source == "rocky_tracker" %}<span class="muted">Rocky Linux Errata, Checked {{ check.checked_at|date:"j M H:i" }}</span>
+                      {% else %}<span class="muted">Ubuntu Tracker, {{ check.ubuntu_release }}, Checked {{ check.checked_at|date:"j M H:i" }}</span>{% endif %}
+                      {% if user|can_edit and f.can_confirm %}
+                        <form method="post" action="{% url 'core:finding_confirm_check' f.pk %}" style="margin-left: auto">
+                          {% csrf_token %}<button class="btn btn-ghost btn-sm" type="submit">Confirm: {{ check.get_verdict_display }}</button>
+                        </form>
+                      {% endif %}
+                    </header>
+                    <ul>
+                      {% for d in check.details %}
+                        <li>
+                          {% if d.cve %}
+                            <a class="mono" href="{% if check.source == 'ubuntu_tracker' %}https://ubuntu.com/security/{{ d.cve }}{% else %}https://nvd.nist.gov/vuln/detail/{{ d.cve }}{% endif %}" target="_blank" rel="noopener noreferrer">{{ d.cve }}</a>
+                          {% endif %}
+                          <span class="badge {{ d.verdict|verdict_class }}">{{ d.verdict|verdict_label }}</span>
+                          {% for p in d.packages %}<span class="mono">{{ p.package }}</span> <span class="muted">{{ p.why }}</span>{% if not forloop.last %}; {% endif %}{% empty %}<span class="muted">{{ d.reason }}{% if d.missing %}: {{ d.missing|join:", " }}{% endif %}</span>{% endfor %}
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  </div>
+                {% endif %}
+                {% if v %}
+                  <div class="verification">
+                    <header>
+                      <strong style="color: var(--text)">{% if v.source == "qualys_pm" %}Qualys Patch Management Verification{% elif v.source == "rocky_tracker" %}Rocky Linux Errata Verification{% else %}Distro Patch Verification{% endif %}</strong>
+                      <span class="badge {% if v.verdict == 'confirmed_vulnerable' %}sev-critical{% else %}badge-verified{% endif %}">{{ v.get_verdict_display }}</span>
+                      {% if v.from_patch_check %}<span class="muted">from {% if v.source == "qualys_pm" %}the Qualys Patch Management Check{% elif v.source == "rocky_tracker" %}the Rocky Linux Errata Check{% else %}the Ubuntu Tracker Check{% endif %}</span>{% endif %}
+                      {% if f.related_package %}<span class="mono">{{ f.related_package.package_name }} {{ f.related_package.installed_version }}</span>{% endif %}
+                      {% if f.verification_outdated %}<span class="badge sev-medium" title="A Package This Verification Relied on Has Changed Version Since">Outdated: Packages Changed</span>{% endif %}
+                    </header>
+                    <p>{{ v.note }}</p>
+                    <div class="muted" style="font-size: 12.5px">
+                      Verified by {% if v.verified_by %}{{ v.verified_by.get_full_name|default:v.verified_by.username }}{% else %}an Unknown User{% endif %} on {{ v.verified_at|date:"j M Y" }}
+                      {% if v.reference_url %} · <a href="{{ v.reference_url }}" target="_blank" rel="noopener noreferrer">{% if v.source == "qualys_pm" %}Microsoft KB Article ↗{% elif v.source == "rocky_tracker" %}Rocky Linux Advisory ↗{% else %}Distro CVE Tracker ↗{% endif %}</a>{% endif %}
+                    </div>
+                  </div>
+                {% endif %}
+                {% if f.history %}
+                  <details class="scanner-details">
+                    <summary>History ({{ f.history|length }})</summary>
+                    <ul class="history">
+                      {% for log in f.history %}
+                        <li>
+                          <span class="muted">{{ log.timestamp|date:"j M Y, H:i" }} · {% if log.user %}{{ log.user.get_full_name|default:log.user.username }}{% else %}Unknown User{% endif %}</span>
+                          {% for line in log.details|triage_changes %}<span> · {{ line }}</span>{% endfor %}
+                          {% if log.details.note %}<p>{{ log.details.note }}</p>{% endif %}
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  </details>
+                {% endif %}
+                {% if f.detection_result or f.extra_data %}
+                  <details class="scanner-details">
+                    <summary>Scanner Details</summary>
+                    {% if f.detection_result %}<div class="muted" style="font-size: 12px; margin-top: 8px">Result</div><pre>{{ f.detection_result }}</pre>{% endif %}
+                    {% if f.extra_data %}
+                      <dl class="dl" style="margin-top: 8px">
+                        {% for column, value in f.extra_data.items %}<dt>{{ column }}</dt><dd style="white-space: pre-line">{{ value }}</dd>{% endfor %}
+                      </dl>
+                    {% endif %}
+                  </details>
+                {% endif %}
+              </td>
+            </tr>
+          {% endif %}
+          {% endwith %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <div class="empty">No Findings Recorded for This Host.</div>
+{% endif %}
+{% endwith %}

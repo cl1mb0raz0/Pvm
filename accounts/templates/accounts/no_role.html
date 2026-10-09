@@ -1,0 +1,12 @@
+{% extends "auth.html" %}
+
+{% block title %}No Role Assigned{% endblock %}
+
+{% block content %}
+<h1>No Role Assigned Yet</h1>
+<p>Your Account Exists, but an Administrator Has Not Given It a Role (Super Admin, Admin, Analyst or Read-Only), so There Is Nothing You Can Access Yet. Ask an Administrator to Assign One.</p>
+<form method="post" action="{% url 'accounts:logout' %}">
+  {% csrf_token %}
+  <button class="btn btn-ghost btn-block" type="submit">Log Out</button>
+</form>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block body %}
+<main class="auth">
+  <div class="card auth-card {% block card_class %}{% endblock %}">
+    <div class="brand">
+      <img class="brand-logo" src="{% static 'pvm/img/logo.png' %}" alt="" width="40" height="40">
+      <span class="brand-name">Pvm</span>
+    </div>
+    {% if messages %}
+      <ul class="messages">{% for message in messages %}<li>{{ message }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </div>
+</main>
+{% endblock %}

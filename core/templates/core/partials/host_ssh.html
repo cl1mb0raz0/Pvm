@@ -1,0 +1,62 @@
+{% load pvm %}
+{# Inventory over SSH for this host; polls itself while a read runs. #}
+<section class="ask-box ssh-box" {% if host.ssh_state == "running" %}hx-get="?tab=packages" hx-trigger="every 3s" hx-target="#tab-panel"{% endif %}>
+  <div class="ssh-head">
+    <h3>Ask the Server over SSH</h3>
+    {% if host.ssh_enabled %}
+      <span class="mono muted" style="font-size: 12.5px">{{ ssh_target }}</span>
+      {% include "core/partials/ssh_state.html" %}
+      {% if host.ssh_checked_at and host.ssh_state != "running" %}<span class="muted" style="font-size: 12.5px">{{ host.ssh_checked_at|date:"j M Y, H:i" }}</span>{% endif %}
+      {% if host.running_kernel %}<span class="muted" style="font-size: 12.5px">Kernel <span class="mono">{{ host.running_kernel }}</span></span>{% endif %}
+    {% endif %}
+    {% if user|can_edit and host.ssh_enabled %}
+      <form method="post" action="{% url 'core:host_ask_server' host.pk %}" style="margin-left: auto">
+        {% csrf_token %}
+        <button class="btn" type="submit" {% if ssh_not_ready or host.ssh_state == "running" or host.ssh_state == "host_key" %}disabled title="{{ ssh_not_ready|default:'Waiting' }}"{% endif %}>Ask Server</button>
+      </form>
+    {% endif %}
+  </div>
+
+  {% if not host.ssh_enabled %}
+    <p class="muted">Not Enabled. Once the Sysadmins Have Installed Pvm's Key on This Host, an Admin Enables It Below; Pvm Then Reads the Release, Kernel and Packages Itself.</p>
+  {% elif ssh_not_ready %}
+    <p class="muted">{{ ssh_not_ready }}</p>
+  {% endif %}
+
+  {% if host.ssh_pending_host_key %}
+    <div class="host-key-confirm">
+      <p><strong>First Contact: Confirm This Is the Right Server.</strong> It Presented the Host Key
+        <span class="mono">{{ ssh_pending_host_key_fingerprint }}</span>. Ask the Sysadmin to Compare It with the Output of
+        <span class="mono">ssh-keygen -lf {{ ssh_host_key_file }}</span> on the Server.</p>
+      {% if user|can_manage_settings %}
+        <form method="post" action="{% url 'core:host_ssh_trust' host.pk %}">
+          {% csrf_token %}<input type="hidden" name="host_key" value="{{ host.ssh_pending_host_key }}">
+          <button class="btn btn-sm" type="submit">Fingerprint Matches: Confirm and Ask</button>
+        </form>
+      {% else %}
+        <p class="muted">An Admin Must Confirm It.</p>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {% if user|can_manage_settings %}
+    <details class="ssh-settings" {% if not host.ssh_enabled %}open{% endif %}>
+      <summary>Connection Settings</summary>
+      <form method="post" action="{% url 'core:host_ssh_settings' host.pk %}" class="filters" style="padding: 10px 0 0; border: 0">
+        {% csrf_token %}
+        <label class="choice" style="align-self: center"><input type="checkbox" name="ssh_enabled" value="1" {% if host.ssh_enabled %}checked{% endif %}> <span>SSH Enabled</span></label>
+        <label class="field field-grow">Address<input type="text" name="ssh_address" value="{{ host.ssh_address }}" placeholder="{{ host.private_ip|default:host.ip_address }} (default: private IP, else scanned IP)"></label>
+        <label class="field">Port<input type="text" name="ssh_port" value="{{ host.ssh_port }}" inputmode="numeric" size="5"></label>
+        <label class="field">User<input type="text" name="ssh_username" value="{{ host.ssh_username }}" placeholder="{{ ssh_default_user }}"></label>
+        <button class="btn btn-ghost" type="submit">Save</button>
+      </form>
+      {% if host.ssh_host_key %}
+        <form method="post" action="{% url 'core:host_ssh_forget' host.pk %}" style="margin-top: 8px; font-size: 12.5px" onsubmit="return confirm('Forget the Confirmed Host Key? Do It Only If the Server Was Reinstalled or Its Keys Were Changed on Purpose.')">
+          {% csrf_token %}
+          <span class="muted">Confirmed Host Key <span class="mono">{{ ssh_host_key_fingerprint }}</span> ·</span>
+          <button class="btn-link" type="submit">Forget It</button>
+        </form>
+      {% endif %}
+    </details>
+  {% endif %}
+</section>

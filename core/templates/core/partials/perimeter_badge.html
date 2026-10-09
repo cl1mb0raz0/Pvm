@@ -1,0 +1,1 @@
+{% if perimeter %}<span class="badge {% if perimeter.internet_facing %}per-external{% else %}per-default{% endif %}" title="{{ perimeter.description }}">{{ perimeter.name }}</span>{% else %}<span class="muted">—</span>{% endif %}

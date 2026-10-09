@@ -1,0 +1,41 @@
+{# Triage of the ticked findings, or of all `all_count` findings the view is showing. Rows tick themselves into this form (form="triage"). #}
+<form id="triage" class="filters triage-bar" method="post" action="{% url 'core:triage_findings' %}"
+      onsubmit="if (this.scope.checked) return confirm('Apply to All {{ all_count }} {{ all_label }}?'); if (!document.querySelector('input[name=finding]:checked')) { alert('Select at Least One Finding, or Tick “All {{ all_count }}”.'); return false; }">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+  <input type="hidden" name="filters" value="{{ triage_filters }}">
+  <strong class="triage-title">Triage</strong>
+  <label class="field">
+    Team
+    <select name="team">
+      <option value="">No Change</option>
+      <option value="none">Unassigned</option>
+      {% for team in teams %}<option value="{{ team.pk }}">{{ team.name }}</option>{% endfor %}
+    </select>
+  </label>
+  <label class="field">
+    Due Date
+    <select name="due_mode">
+      <option value="">No Change</option>
+      <option value="policy">Follow SLA Policy</option>
+      <option value="date">Set Date</option>
+    </select>
+  </label>
+  <label class="field">
+    <span aria-hidden="true">&nbsp;</span>
+    <input type="date" name="due_date" aria-label="Due Date" onchange="if (this.value) this.form.due_mode.value = 'date'">
+  </label>
+  <label class="field">
+    Status
+    <select name="status">
+      <option value="">No Change</option>
+      {% for value, label in triage_statuses %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+    </select>
+  </label>
+  <label class="field field-grow">
+    Note
+    <input type="text" name="note" maxlength="500" placeholder="e.g. risk accepted until the Q4 upgrade, ticket INC-1234">
+  </label>
+  <label class="triage-scope"><input type="checkbox" name="scope" value="all"> All {{ all_count }} {{ all_label }}</label>
+  <button class="btn" type="submit">Apply</button>
+</form>

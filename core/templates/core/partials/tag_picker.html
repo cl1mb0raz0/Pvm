@@ -1,0 +1,12 @@
+{# Existing tags to tick (selected_tags: ids) plus new ones to type. #}
+{% if all_tags %}
+  <div class="tag-choices">
+    {% for t in all_tags %}
+      <label class="choice tag-choice"><input type="checkbox" name="tag" value="{{ t.pk }}" {% if t.pk in selected_tags %}checked{% endif %}> <span class="tag">{{ t.name }}</span></label>
+    {% endfor %}
+  </div>
+{% endif %}
+<label class="field" style="max-width: 420px; margin-top: 8px">
+  New Tags, Comma-Separated
+  <input type="text" name="new_tags" value="{{ request.POST.new_tags }}" maxlength="300" placeholder="e.g. Alpha, Finance">
+</label>

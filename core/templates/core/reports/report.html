@@ -1,0 +1,140 @@
+{# Standalone report: downloaded as HTML (with its own filters) and the same file WeasyPrint turns into the PDF (where the filters are not printed). #}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Pvm {{ title }} · {{ made_at|date:"Y-m-d H:i" }}</title>
+  <style>
+    @page { size: A4 landscape; margin: 14mm 10mm; @bottom-right { content: "Page " counter(page) " of " counter(pages); font: 9px "DejaVu Sans", sans-serif; color: #6b7280; } }
+    body { font: 11px/1.45 "DejaVu Sans", Arial, sans-serif; color: #111827; margin: 0; padding: 18px; background: #fff; }
+    h1 { font-size: 19px; margin: 0 0 2px; }
+    .made { color: #6b7280; font-size: 10.5px; margin: 0 0 14px; }
+    .box { border: 1px solid #d1d5db; border-radius: 6px; padding: 10px 12px; margin-bottom: 14px; }
+    .box h2 { font-size: 12px; margin: 0 0 6px; text-transform: uppercase; letter-spacing: 0.04em; color: #374151; }
+    .pairs { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 0; padding: 0; list-style: none; }
+    .pairs li { font-size: 10.5px; }
+    .pairs b { color: #374151; font-weight: 600; }
+    .counts { display: flex; flex-wrap: wrap; gap: 8px; }
+    .count { border: 1px solid #e5e7eb; border-radius: 5px; padding: 5px 9px; min-width: 88px; }
+    .count .n { font-size: 15px; font-weight: 700; }
+    .count .l { font-size: 9.5px; color: #6b7280; }
+    .controls { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end; }
+    .controls label { display: flex; flex-direction: column; gap: 3px; font-size: 9.5px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.03em; }
+    .controls input, .controls select { font: 11px "DejaVu Sans", Arial, sans-serif; color: #111827; padding: 4px 6px; border: 1px solid #d1d5db; border-radius: 4px; background: #fff; min-width: 130px; }
+    .controls button { font: 11px "DejaVu Sans", Arial, sans-serif; padding: 5px 10px; border: 1px solid #d1d5db; border-radius: 4px; background: #f9fafb; cursor: pointer; }
+    #shown { font-size: 10.5px; color: #6b7280; margin-left: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 9.5px; }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; }
+    th { text-align: left; background: #f3f4f6; border-bottom: 1px solid #d1d5db; padding: 5px 6px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.03em; color: #374151; }
+    td { border-bottom: 1px solid #eef0f3; padding: 4px 6px; vertical-align: top; word-break: break-word; }
+    td.n { text-align: right; }
+    .sev-critical { color: #b91c1c; font-weight: 700; }
+    .sev-high { color: #c2410c; font-weight: 700; }
+    .sev-medium { color: #a16207; }
+    .sev-low { color: #1d4ed8; }
+    /* Green: nothing left to fix here (resolved, or the installed version carries the fix). */
+    td.settled { color: #15803d; font-weight: 700; }
+    tr.settled { background: #f0fdf4; }
+    .legend { font-size: 9.5px; color: #6b7280; margin: 8px 0 0; }
+    .legend .swatch { color: #15803d; font-weight: 700; }
+    .empty { color: #6b7280; font-style: italic; }
+    footer { margin-top: 14px; color: #6b7280; font-size: 9.5px; }
+    @media print { .controls-box { display: none; } }
+  </style>
+</head>
+<body>
+  <h1>Pvm — {{ title }}</h1>
+  <p class="made">{{ rows|length }} Row{{ rows|length|pluralize }} · Made {{ made_at|date:"j F Y, H:i" }}{% if made_by %} by {{ made_by }}{% endif %}</p>
+  {% if note %}<p class="made" style="font-style: italic">{{ note }}</p>{% endif %}
+
+  <div class="box">
+    <h2>Filters Applied</h2>
+    {% if applied %}
+      <ul class="pairs">{% for label, value in applied %}<li><b>{{ label }}:</b> {{ value }}</li>{% endfor %}</ul>
+    {% else %}
+      <p class="empty" style="margin: 0">None: Everything Pvm Holds, with the Default View of the List.</p>
+    {% endif %}
+  </div>
+
+  {% if summary %}
+    <div class="box">
+      <h2>Summary</h2>
+      <div class="counts">
+        <div class="count"><div class="n">{{ summary.total }}</div><div class="l">Total</div></div>
+        {% for label, count in summary.severities %}<div class="count"><div class="n">{{ count }}</div><div class="l">{{ label }}</div></div>{% endfor %}
+        {% for label, count in summary.priorities %}<div class="count"><div class="n">{{ count }}</div><div class="l">{{ label }}</div></div>{% endfor %}
+        {% for label, count in summary.statuses %}<div class="count"><div class="n">{{ count }}</div><div class="l">{{ label }}</div></div>{% endfor %}
+      </div>
+    </div>
+  {% endif %}
+
+  {% if rows and filters %}
+    <div class="box controls-box">
+      <h2>Filter This Page</h2>
+      <div class="controls">
+        <label>Search<input type="search" id="search" placeholder="Host, QID, Title…"></label>
+        {% for f in filters %}
+          <label>{{ f.label }}
+            <select data-at="{{ f.at }}">
+              <option value="">All</option>
+              {% for value in f.values %}<option value="{{ value }}">{{ value }}</option>{% endfor %}
+            </select>
+          </label>
+        {% endfor %}
+        <button type="button" id="clear">Clear</button>
+        <span id="shown">{{ rows|length }} of {{ rows|length }} Rows</span>
+      </div>
+      <p class="legend"><span class="swatch">Green</span> = Nothing Left to Fix: Resolved, or the Installed Version Already Carries the Fix. These Filters Work in This File Alone; the Pdf and the Csv of the Same Export Hold Every Row.</p>
+    </div>
+  {% endif %}
+
+  {% if rows %}
+    <table id="report">
+      <thead><tr>{% for column in columns %}<th>{{ column }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for row in rows %}
+          <tr{% if row.settled %} class="settled"{% endif %} data-keys="{{ row.keys|join:"§" }}">
+            {% for cell in row.cells %}<td{% if cell.cls %} class="{{ cell.cls }}"{% endif %}>{% if cell.href %}<a href="{{ cell.href }}">{{ cell.value }}</a>{% else %}{{ cell.value|default_if_none:"" }}{% endif %}</td>{% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty">Nothing Matches These Filters.</p>
+  {% endif %}
+
+  <footer>Pvm · The Columns Left Out of This Page Are in the Csv Export of the Same Filters.</footer>
+
+  {% if rows and filters %}
+    <script>
+      (function () {
+        var rows = Array.prototype.slice.call(document.querySelectorAll('#report tbody tr'));
+        var selects = Array.prototype.slice.call(document.querySelectorAll('.controls select'));
+        var search = document.getElementById('search');
+        var shown = document.getElementById('shown');
+        function apply() {
+          var text = search.value.trim().toLowerCase();
+          var wanted = selects.map(function (s) { return {at: parseInt(s.getAttribute('data-at'), 10), value: s.value}; });
+          var count = 0;
+          rows.forEach(function (row) {
+            var keys = (row.getAttribute('data-keys') || '').split('§');
+            var ok = wanted.every(function (choice) { return !choice.value || keys[choice.at] === choice.value; });
+            if (ok && text) { ok = row.textContent.toLowerCase().indexOf(text) !== -1; }
+            row.style.display = ok ? '' : 'none';
+            if (ok) { count++; }
+          });
+          shown.textContent = count + ' of ' + rows.length + ' Rows';
+        }
+        selects.forEach(function (s) { s.addEventListener('change', apply); });
+        search.addEventListener('input', apply);
+        document.getElementById('clear').addEventListener('click', function () {
+          search.value = '';
+          selects.forEach(function (s) { s.value = ''; });
+          apply();
+        });
+      })();
+    </script>
+  {% endif %}
+</body>
+</html>

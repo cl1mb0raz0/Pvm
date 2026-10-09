@@ -1,0 +1,120 @@
+{% extends "app.html" %}
+
+{% block title %}Export{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Export</h1>
+    <p>Take Away What You Need: Choose the List, Narrow It with Every Filter, Pick the Format. Resolved Findings Are Included Only When You Ask for Them.</p>
+  </div>
+</div>
+
+<section class="card">
+  <form id="export-form" class="card-body stack" method="get" action="{% url 'core:export_run' %}" style="gap: 18px">
+    <fieldset class="perimeter-choice">
+      <legend><strong>What to Export</strong></legend>
+      {% for value, label in datasets.items %}
+        <label class="choice">
+          <input type="radio" name="dataset" value="{{ value }}" {% if value == dataset %}checked{% endif %}
+                 onchange="document.querySelectorAll('.findings-only').forEach(function (e) { e.hidden = this.value !== 'findings'; }, this)">
+          <span>{{ label }}{% if value == "findings" %} <span class="muted">({{ counts.open }} Open of {{ counts.findings }})</span>{% endif %}</span>
+        </label>
+      {% endfor %}
+    </fieldset>
+
+    <div class="filters" style="padding: 0">
+      <label class="field field-grow">
+        Search (Host, IP, QID, CVE or Title)
+        <input type="search" name="q" placeholder="e.g. appsrv or CVE-2024-6387">
+      </label>
+      <label class="field">
+        Perimeter
+        <select name="perimeter">
+          <option value="">All</option>
+          {% for p in perimeters %}<option value="{{ p.slug }}">{{ p.name }}</option>{% endfor %}
+        </select>
+      </label>
+      {% include "core/partials/multi_select.html" with label="Tag" name="tag" choices=tag_choices chosen="" %}
+    </div>
+
+    <div class="filters findings-only" style="padding: 0">
+      <label class="field">
+        As Of
+        <input type="date" name="as_of" max="{{ yesterday|date:'Y-m-d' }}"
+               title="The Situation on a Past Day: Which Findings Were Open Then, from a Snapshot or Reconstructed from the Scans">
+      </label>
+      <label class="field">
+        Status
+        <select name="status">
+          {% for value, label in statuses %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+      {% include "core/partials/multi_select.html" with label="Severity" name="severity" choices=severities chosen="" %}
+      {% include "core/partials/multi_select.html" with label="Qualys Severity" name="qualys" choices=qualys_levels chosen="" %}
+      {% include "core/partials/multi_select.html" with label="Priority" name="priority" choices=priority_choices chosen="" %}
+      {% include "core/partials/multi_select.html" with label="CVSS (NVD)" name="cvss" choices=cvss_choices chosen="" %}
+      <label class="field">
+        Exploited
+        <select name="kev">
+          <option value="">All</option>
+          <option value="yes">In CISA KEV</option>
+        </select>
+      </label>
+      <label class="field">
+        Patch Check
+        <select name="patch">
+          <option value="">All</option>
+          {% for value, label in patch_filters %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="field">
+        Team
+        <select name="team">
+          <option value="">All</option>
+          <option value="none">Unassigned</option>
+          {% for t in teams %}<option value="{{ t.pk }}">{{ t.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="field">
+        Source
+        <select name="source">
+          <option value="">All</option>
+          {% for value, label in sources %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="field">
+        Import
+        <select name="import">
+          <option value="">All</option>
+          {% for i in imports %}<option value="{{ i.pk }}">{{ i.label }}</option>{% endfor %}
+        </select>
+      </label>
+    </div>
+
+    <fieldset class="perimeter-choice">
+      <legend><strong>Format</strong></legend>
+      {% for value, label in formats.items %}
+        <label class="choice">
+          <input type="radio" name="format" value="{{ value }}" {% if forloop.first %}checked{% endif %}>
+          <span>{{ label }}</span>
+        </label>
+      {% endfor %}
+      <p class="muted" style="margin: 6px 0 0; font-size: 12.5px">
+        CSV Holds Every Column, for Excel. HTML and PDF Are a Report: the Filters Used, the Counts, Then the Table with the Columns That Fit a Page.
+        With an "As Of" Date the Report Says Which Day It Describes and Where That State Comes From.
+      </p>
+    </fieldset>
+
+    <div><button class="btn" type="submit">Export</button></div>
+  </form>
+
+  <div id="preview"
+       hx-get="{% url 'core:export_preview' %}"
+       hx-trigger="load, change from:#export-form, keyup changed delay:500ms from:#export-form"
+       hx-include="#export-form"
+       hx-swap="innerHTML">
+    <div class="card-body muted">Counting…</div>
+  </div>
+</section>
+{% endblock %}

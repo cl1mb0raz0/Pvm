@@ -1,0 +1,40 @@
+{% extends "app.html" %}
+
+{% block title %}Delete All Backups{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="muted" style="font-size: 12.5px"><a href="{% url 'backups:list' %}">Backups</a> / Delete All Backups</div>
+    <h1 style="margin-top: 4px">Delete All Backups</h1>
+    <p>Remove Every Backup Taken so Far. The Current Data Is Not Touched.</p>
+  </div>
+</div>
+
+<section class="card card-body stack" style="max-width: 760px">
+  <div class="verification" style="border-left-color: var(--sev-critical); margin: 0">
+    <p style="margin: 0; white-space: normal"><strong>This Deletes:</strong></p>
+    <ul style="margin: 6px 0 0; padding-left: 18px">
+      <li>{{ backups|length }} Backup{{ backups|length|pluralize }}, Files Included ({{ total_size|filesizeformat }})</li>
+    </ul>
+  </div>
+
+  <div class="muted" style="font-size: 13px">
+    <strong style="color: var(--text)">Kept:</strong> All Hosts, Findings, Imports, Users and Settings.
+    <strong style="color: var(--text)">No Backup Is Taken First</strong>: Download Any Backup You Want to Keep Elsewhere Before Continuing. Cannot Be Undone.
+  </div>
+
+  <form method="post" class="stack" style="gap: 12px">
+    {% csrf_token %}
+    {% if error %}<ul class="errors"><li>{{ error }}</li></ul>{% endif %}
+    <label class="field">
+      Type {{ confirmation }} to Confirm
+      <input type="text" name="confirm" autocomplete="off" required style="max-width: 240px">
+    </label>
+    <div style="display: flex; gap: 8px">
+      <button class="btn btn-danger" type="submit">Delete All Backups</button>
+      <a class="btn btn-ghost" href="{% url 'backups:list' %}">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

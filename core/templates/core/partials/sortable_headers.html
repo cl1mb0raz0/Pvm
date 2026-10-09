@@ -1,0 +1,10 @@
+{# The header row every sortable table uses: `headers` from core.sorting. A header without a url is shown but cannot be sorted on. #}
+{% for h in headers %}
+  <th{% if h.url or h.numeric %} class="{% if h.url %}sortable{% endif %}{% if h.numeric %} num{% endif %}"{% endif %}
+      {% if h.title %}title="{{ h.title }}"{% endif %}
+      {% if h.active %}aria-sort="{% if h.dir == 'asc' %}ascending{% else %}descending{% endif %}"{% endif %}>
+    {% if h.url %}
+      <a href="{{ h.url }}"{% if not h.title %} title="Sort by {{ h.label|lower }}"{% endif %}>{{ h.label }}<span class="sort-arrow" aria-hidden="true">{% if h.active %}{% if h.dir == "asc" %}▲{% else %}▼{% endif %}{% else %}↕{% endif %}</span></a>
+    {% else %}{{ h.label }}{% endif %}
+  </th>
+{% endfor %}

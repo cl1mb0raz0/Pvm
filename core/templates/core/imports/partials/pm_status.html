@@ -1,0 +1,21 @@
+{# The latest Qualys Pm search; polls while it runs, then the page reloads with the results. #}
+<div id="pm-status" class="card-body" {% if running %}hx-get="{% url 'core:qualys_pm' %}" hx-trigger="every 4s" hx-target="#pm-status" hx-swap="outerHTML"{% endif %}>
+  <div class="ssh-head">
+    {% if not search %}
+      <span class="muted">No Search Yet. Pvm Checks Your Windows Hosts' Findings against Qualys Patch Management and Records a Verdict on Each One Directly (No Approval Step, like the Ubuntu Check).</span>
+    {% elif running %}
+      <span class="badge sev-medium"><span class="spinner" aria-hidden="true"></span> Checking against Qualys Patch Management…</span>
+      <span class="muted" style="font-size: 12.5px">Started {{ search.started_at|date:"H:i" }}{% if search.started_by %} by {{ search.started_by.username }}{% endif %}. It Reads the Whole Patch Catalog, Then Every Windows Host; This Page Updates by Itself.</span>
+    {% elif search.state == "failed" %}
+      <span class="badge sev-critical">Search Failed</span> <span class="muted">{{ search.error }}</span>
+    {% else %}
+      <span class="badge st-resolved">Checked {{ search.finished_at|date:"j M Y, H:i" }}</span>
+      <span class="muted" style="font-size: 12.5px">{{ search.patches_seen }} Patches Read (the Newest Qualys Lets This Listing Page Through, Well under Its Full Catalog) · {{ search.matched }} of Your {{ search.windows_hosts }} Windows Hosts Found in Qualys Pm{% if unmatched %} ({{ unmatched }} Not Found){% endif %} · {{ search.findings_checked }} Findings Checked · {{ search.api_calls }} API Calls</span>
+    {% endif %}
+    {% if configured and not running %}
+      <form method="post" action="{% url 'core:qualys_pm_search' %}" style="margin-left: auto">
+        {% csrf_token %}<button class="btn" type="submit">{% if search %}Check Again{% else %}Search Qualys Pm{% endif %}</button>
+      </form>
+    {% endif %}
+  </div>
+</div>

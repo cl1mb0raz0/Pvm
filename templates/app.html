@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% load static %}
+{% load pvm %}
+
+{% block body %}
+<div class="app">
+  <aside class="sidebar">
+    <a class="brand" href="{% url 'core:dashboard' %}" title="Pvm, Dashboard">
+      <img class="brand-logo" src="{% static 'pvm/img/logo.png' %}" alt="" width="40" height="40">
+      <span class="brand-name">Pvm</span>
+    </a>
+
+    <nav class="nav" aria-label="Main">
+      <a href="{% url 'core:dashboard' %}" {% nav_current 'core:dashboard' %}>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
+        Dashboard
+      </a>
+      <a href="{% url 'core:vulnerability_list' %}" {% nav_current 'core:vulnerability_list' %}>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 1.5 2.5 3.5v4c0 3.2 2.3 5.9 5.5 7 3.2-1.1 5.5-3.8 5.5-7v-4L8 1.5Z"/><path d="M8 5v3.5M8 10.8v.2"/></svg>
+        Vulnerabilities
+      </a>
+      <a href="{% url 'core:host_list' %}" {% nav_current 'core:host_list' 'core:host_detail' %}>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2.5" width="12" height="4.5" rx="1"/><rect x="2" y="9" width="12" height="4.5" rx="1"/><path d="M4.5 4.75h.01M4.5 11.25h.01"/></svg>
+        Hosts
+      </a>
+      {% imports_menu as imports_entries %}
+      {% csam_todo as csam_todo_info %}
+      <a href="{% url 'core:import_list' %}" {% if imports_entries %}class="nav-section-open"{% endif %}>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5"/><path d="M2.5 11v1.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V11"/></svg>
+        Imports
+        {% if csam_todo_info.count %}<span class="nav-badge" title="{{ csam_todo_info.count }} Host{{ csam_todo_info.count|pluralize }} with Details from Qualys Csam Not Imported Yet">{{ csam_todo_info.count }}</span>{% endif %}
+      </a>
+      {% if imports_entries|length > 1 %}
+        <div class="subnav" aria-label="Imports">
+          {% for label, url_name, current in imports_entries %}<a href="{% url url_name %}" {% if current %}aria-current="page"{% endif %}>{{ label }}{% if url_name == "core:qualys_csam" and csam_todo_info.count %} <span class="nav-badge" title="{{ csam_todo_info.count }} Host{{ csam_todo_info.count|pluralize }} to Import">{{ csam_todo_info.count }}</span>{% elif url_name == "core:qualys_csam" and csam_todo_info.stale %} <span class="nav-badge nav-badge-stale" title="The Last Search Is Old">!</span>{% endif %}</a>{% endfor %}
+        </div>
+      {% endif %}
+      <a href="{% url 'core:export' %}" {% nav_current 'core:export' %}>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 10.5V2M4.5 5.5 8 2l3.5 3.5"/><path d="M2.5 11v1.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V11"/></svg>
+        Export
+      </a>
+      {% if user|can_manage_backups %}
+        <a href="{% url 'backups:list' %}" {% nav_current 'backups:list' 'backups:restore' %}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><ellipse cx="8" cy="3.5" rx="5.5" ry="2"/><path d="M2.5 3.5v9c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2v-9"/><path d="M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2"/></svg>
+          Backups
+        </a>
+      {% endif %}
+      {% if user|can_manage_settings %}
+        <a href="{% url 'core:ssh_access' %}" {% nav_current 'core:ssh_access' %}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="5" cy="8" r="2.75"/><path d="M7.75 8h6.5M12 8v2.5M14.25 8v2"/></svg>
+          Access (Ssh)
+        </a>
+      {% endif %}
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="who" title="{{ user.email }}">{{ user.get_full_name|default:user.username }}</div>
+      <div class="muted">{{ user.get_role_display }}</div>
+      <div class="links">
+        <a href="{% url 'accounts:account' %}">Account</a>
+        {% if user.is_staff %}<a href="{% url 'admin:index' %}">Admin</a>{% endif %}
+        <form method="post" action="{% url 'accounts:logout' %}">
+          {% csrf_token %}
+          <button class="btn-link" type="submit" title="Log Out">Out</button>
+        </form>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    {% if messages %}
+      <ul class="messages">{% for message in messages %}<li>{{ message }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends "app.html" %}
+{% load pvm %}
+
+{% block title %}{{ host.hostname }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="muted" style="font-size: 12.5px"><a href="{% url 'core:host_list' %}">Hosts</a> / {{ host.hostname }}</div>
+    <h1 style="margin-top: 4px">{{ host.hostname }}</h1>
+    <dl class="host-meta">
+      <div><dt>IP Address</dt><dd class="mono">{{ host.ip_address }}{% if load_balancer %} <span class="badge per-lb" title="{{ host.ip_address }} is a load balancer">{{ load_balancer.name }}</span>{% endif %}</dd></div>
+      {% if host.private_ip %}{% with ips=host.all_private_ips %}<div><dt>Private IP{{ ips|length|pluralize:"s" }}</dt><dd class="mono">{{ ips|join:", " }}</dd></div>{% endwith %}{% endif %}
+      <div><dt>OS</dt><dd title="{{ host.os_name }}">{{ host.os_version|default:host.os_name|default:"—"|truncatechars:60 }}</dd></div>
+      <div><dt>Environment</dt><dd>{{ host.get_environment_display }}</dd></div>
+      <div><dt>Qualys Host ID</dt><dd class="mono">{{ host.qualys_host_id|default:"—" }}</dd></div>
+      <div><dt>Last Scanned</dt><dd class="mono">{{ host.last_scanned_at|date:"Y-m-d H:i"|default:"—" }}</dd></div>
+      <div>
+        <dt>Tags</dt>
+        <dd class="host-tags">
+          {% for t in host.tags.all %}
+            <span class="tag">{{ t.name }}{% if user|can_edit %}<form method="post" action="{% url 'core:host_remove_tag' host.pk t.pk %}" onsubmit="return confirm('Remove the Tag {{ t.name|escapejs }} from This Host?')">{% csrf_token %}<button type="submit" class="tag-remove" aria-label="Remove {{ t.name }}">×</button></form>{% endif %}</span>
+          {% empty %}<span class="muted">—</span>{% endfor %}
+          {% if user|can_edit %}
+            <form method="post" action="{% url 'core:host_add_tags' host.pk %}" class="tag-add">
+              {% csrf_token %}<input type="text" name="new_tags" maxlength="300" placeholder="+ Tag" aria-label="Add Tags, Comma-Separated" list="host-known-tags">
+              <datalist id="host-known-tags">{% for t in all_tags %}<option value="{{ t.name }}">{% endfor %}</datalist>
+            </form>
+          {% endif %}
+        </dd>
+      </div>
+    </dl>
+  </div>
+</div>
+
+<section class="card">
+  <nav class="tabs" role="tablist" hx-target="#tab-panel" hx-push-url="true">
+    <a role="tab" href="?tab=vulnerabilities" hx-get="?tab=vulnerabilities" aria-selected="{% if tab != 'packages' %}true{% else %}false{% endif %}">Vulnerabilities<span class="count">{{ open_count }} Open</span></a>
+    <a role="tab" href="?tab=packages" hx-get="?tab=packages" aria-selected="{% if tab == 'packages' %}true{% else %}false{% endif %}">Installed Packages<span class="count">{{ package_count }}</span></a>
+    <a role="tab" href="?tab=network" hx-get="?tab=network" aria-selected="{% if tab == 'network' %}true{% else %}false{% endif %}">Network</a>
+  </nav>
+  <div id="tab-panel" role="tabpanel">
+    {% if tab == "packages" %}{% include "core/partials/host_packages.html" %}{% elif tab == "network" %}{% include "core/partials/host_network.html" %}{% else %}{% include "core/partials/host_findings.html" %}{% endif %}
+  </div>
+</section>
+
+<script>
+  // Keep the tab highlight in sync when a tab is loaded through htmx.
+  document.addEventListener("htmx:afterSettle", function (event) {
+    if (event.detail.target.id !== "tab-panel") return;
+    var current = new URLSearchParams(location.search).get("tab") || "vulnerabilities";
+    document.querySelectorAll(".tabs [role=tab]").forEach(function (tab) {
+      tab.setAttribute("aria-selected", tab.getAttribute("href") === "?tab=" + current ? "true" : "false");
+    });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,67 @@
+{% extends "app.html" %}
+
+{% block title %}Upload Backup{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Upload</h1>
+    <p>Upload a Backup File Taken on Another Pvm Installation to Bring This One to That State - Meant for a Fresh Installation, to Recreate a Situation Captured Elsewhere.</p>
+  </div>
+</div>
+
+<section class="card">
+  <div class="card-body stack" style="gap: 16px">
+    {% if host_count or user_count > 1 %}
+      <div class="verification" style="border-left-color: var(--sev-critical); margin: 0">
+        <p style="margin: 0; white-space: normal">
+          <strong>This Installation Already Has Data</strong> ({{ host_count }} Host{{ host_count|pluralize }}, {{ user_count }} User{{ user_count|pluralize }}).
+          Restoring an Uploaded Backup Replaces All of It, Exactly Like Restoring Any Other Backup.
+        </p>
+      </div>
+    {% endif %}
+
+    <form method="post" action="{% url 'core:import_backup_upload' %}" enctype="multipart/form-data" class="stack" style="gap: 12px">
+      {% csrf_token %}
+      <label class="field">
+        Backup File
+        <input type="file" name="file" accept=".gz,.tar.gz,.json.gz" required>
+      </label>
+      <p class="muted" style="margin: 0; font-size: 12.5px">
+        A <strong>FULL BACKUP</strong> (<span class="mono">.tar.gz</span>, Downloaded from the Other Server's Backups Page) Brings Back Everything, Including the Raw Qualys Report Files;
+        a Regular Backup (<span class="mono">.json.gz</span>) Brings Back the Database Alone. Either Kind Is Detected Automatically from the File Itself.
+        Uploading Only Registers the File Here - Nothing Changes Until You Confirm "Restore" on the Next Page.
+        <span class="mono">.env</span> (the Qualys Password, the Django Secret Key, <span class="mono">PVM_SSH_KEY_SECRET</span>) Is Never Part of a Backup and Must Be Copied to This Server Separately.
+      </p>
+      <div><button class="btn" type="submit">Upload</button></div>
+    </form>
+  </div>
+
+  {% if uploaded %}
+    <div class="card-head" style="border-top: 1px solid var(--border)">
+      <h2>Uploaded Here</h2>
+      <span class="muted" style="font-size: 12.5px">Registered but Not Necessarily Restored - See <a href="{% url 'backups:list' %}">Backups</a> for Every Backup, Including These</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Uploaded</th><th>File</th><th>Contents</th><th>Restored</th><th></th></tr></thead>
+        <tbody>
+          {% for b in uploaded %}
+            <tr>
+              <td class="mono">{{ b.pk }}</td>
+              <td class="mono nowrap">{{ b.created_at|date:"Y-m-d H:i:s" }}</td>
+              <td>
+                {{ b.note|default:b.file_name }}
+                {% if b.full %}<span class="badge" style="color: var(--sev-critical); border-color: var(--sev-critical)" title="Also Includes the Raw Qualys Report Files">Full</span>{% endif %}
+              </td>
+              <td class="muted nowrap" style="font-size: 12.5px">{{ b.contents.hosts }} Hosts · {{ b.contents.findings }} Findings · {{ b.contents.imports }} Imports · {{ b.contents.users }} User{{ b.contents.users|pluralize }}</td>
+              <td class="muted">{% if b.restored_at %}{{ b.restored_at|date:"Y-m-d H:i" }} by {{ b.restored_by }}{% else %}—{% endif %}</td>
+              <td style="text-align: right"><a href="{% url 'backups:restore' b.pk %}">Restore</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

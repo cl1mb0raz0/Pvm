@@ -1,0 +1,25 @@
+__pycache__/
+*.pyc
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+staticfiles/
+scan_imports/
+backups_data/
+*.sqlite3
+*.zip
+README.md
+# Data and local files: never baked into the image (same as .gitignore).
+snapshots/
+github-export/
+chat
+*.tar.gz
+*.json.gz
+*.csv
+!core/fixtures/*.csv
+.venv/
+venv/
+.claude/
+data/

@@ -1,0 +1,114 @@
+{% extends "app.html" %}
+{% load pvm %}
+
+{% block title %}Access (Ssh){% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Access (Ssh)</h1>
+    <p>Pvm Reads Each Host's Installed Packages over SSH, with Its Own Key and a Read-Only Account. Findings Still Need an Analyst's Confirm.</p>
+  </div>
+  {% if key and hosts %}
+    <form method="post" action="{% url 'core:ssh_ask_all' %}" onsubmit="return confirm('Ask All {{ hosts|length }} SSH-Enabled Servers Now?')">
+      {% csrf_token %}<button class="btn" type="submit">Ask All Servers ({{ hosts|length }})</button>
+    </form>
+  {% endif %}
+</div>
+
+{% if not secret_configured %}
+  <section class="card card-body notice-danger" style="margin-bottom: 16px">
+    <strong>PVM_SSH_KEY_SECRET Is Not Set.</strong>
+    It Encrypts Pvm's Private Key in the Database. Add It to <span class="mono">.env</span>, Then Recreate the Containers:
+    <div class="command"><code>PVM_SSH_KEY_SECRET=&lt;output of: python3 -c 'import secrets; print(secrets.token_urlsafe(48))'&gt;</code></div>
+  </section>
+{% endif %}
+
+<div class="grid-2">
+  <section class="card">
+    <div class="card-head"><h2>Pvm's Key</h2>{% if key %}<span class="badge st-resolved">{{ key.get_origin_display }}</span>{% endif %}</div>
+    <div class="card-body stack" style="gap: 12px">
+      {% if key %}
+        <dl class="dl">
+          <dt>Type</dt><dd class="mono">{{ key.key_type }}</dd>
+          <dt>Fingerprint</dt><dd class="mono">{{ key.fingerprint }}</dd>
+          <dt>Created</dt><dd>{{ key.created_at|date:"j M Y, H:i" }}{% if key.created_by %} by {{ key.created_by.username }}{% endif %}</dd>
+        </dl>
+        <div>
+          <div class="muted" style="font-size: 12px; margin-bottom: 4px">Public Key</div>
+          <div class="command"><code id="public-key" class="wrap">{{ key.public_key }}</code>
+            <button class="btn btn-ghost btn-sm" type="button" onclick="navigator.clipboard.writeText(document.getElementById('public-key').textContent); this.textContent='Copied'">Copy</button></div>
+        </div>
+        <div>
+          <div class="muted" style="font-size: 12px; margin-bottom: 4px">Line for <span class="mono">~{{ default_user }}/.ssh/authorized_keys</span> on Each Host (Only the Inventory Command, No Shell, No Forwarding{% if ssh_from %}, Only from {{ ssh_from }}{% endif %})</div>
+          <div class="command"><code id="authorized-line" class="wrap">{{ authorized_keys_line }}</code>
+            <button class="btn btn-ghost btn-sm" type="button" onclick="navigator.clipboard.writeText(document.getElementById('authorized-line').textContent); this.textContent='Copied'">Copy</button></div>
+          {% if not ssh_from %}<p class="hint muted" style="font-size: 12px; margin: 6px 0 0">Set <span class="mono">PVM_SSH_FROM</span> in <span class="mono">.env</span> to Pvm's Address to Add the <span class="mono">from=</span> Restriction.</p>{% endif %}
+        </div>
+        <form method="post" action="{% url 'core:ssh_delete_key' %}" onsubmit="return confirm('Delete Pvm\'s SSH Key? Ask Server Stops Working Until a New One Is Installed on the Hosts.')">
+          {% csrf_token %}<button class="btn btn-danger-ghost btn-sm" type="submit">Delete Key</button>
+        </form>
+      {% else %}
+        <p class="muted" style="margin: 0">No Key Yet. Generate One Here (Recommended: the Private Key Never Leaves Pvm), or Upload the One the Sysadmins Provide.</p>
+      {% endif %}
+    </div>
+    {% if secret_configured %}
+      <div class="card-body stack" style="gap: 12px; border-top: 1px solid var(--border)">
+        <form method="post" action="{% url 'core:ssh_generate_key' %}" {% if key %}onsubmit="return confirm('Replace the Current Key? The Hosts Must Then Receive the New Public Key.')"{% endif %}>
+          {% csrf_token %}<button class="btn {% if key %}btn-ghost{% endif %}" type="submit">{% if key %}Generate a New Key{% else %}Generate Key (Ed25519){% endif %}</button>
+        </form>
+        <details>
+          <summary style="cursor: pointer">Upload an Existing Private Key</summary>
+          <form method="post" action="{% url 'core:ssh_upload_key' %}" enctype="multipart/form-data" class="stack" style="gap: 10px; margin-top: 10px" {% if key %}onsubmit="return confirm('Replace the Current Key?')"{% endif %}>
+            {% csrf_token %}
+            <label class="field">Private Key (OpenSSH or PEM)<textarea name="private_key" rows="5" class="mono" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" autocomplete="off" spellcheck="false"></textarea></label>
+            <label class="field">Or Its File<input type="file" name="key_file"></label>
+            <label class="field">Passphrase (If Any; Not Kept)<input type="password" name="passphrase" autocomplete="off"></label>
+            <div><button class="btn btn-ghost" type="submit">Upload Key</button></div>
+          </form>
+        </details>
+      </div>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>What to Ask the Sysadmins</h2></div>
+    <div class="card-body prose" style="font-size: 13.5px">
+      <ol style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px">
+        <li>Create a Dedicated Account, <span class="mono">{{ default_user }}</span>, with No Sudo and No Password.</li>
+        <li>Install This Script as <span class="mono">{{ remote_command }}</span> (Owned by Root, Mode 755). It Only Reads the OS Release, the Kernel Version and the Package List:
+          <div class="command" style="align-items: start"><code id="inventory-script" class="wrap-words">{{ script }}</code>
+            <button class="btn btn-ghost btn-sm" type="button" onclick="navigator.clipboard.writeText(document.getElementById('inventory-script').textContent); this.textContent='Copied'">Copy</button></div>
+        </li>
+        <li>Add the <span class="mono">authorized_keys</span> Line Shown Here. Even If the Key Were Stolen, It Could Only Run This Script.</li>
+        <li>Allow SSH (Port 22 or the Host's Port) from the Pvm VM to the Hosts.</li>
+      </ol>
+      <p class="muted" style="margin-bottom: 0">Then, on Each Host's Installed Packages Tab, an Admin Enables SSH and Confirms the Server's Host Key Fingerprint on First Contact.</p>
+    </div>
+  </section>
+</div>
+
+<section class="card" style="margin-top: 16px">
+  <div class="card-head"><h2>SSH-Enabled Hosts</h2><span class="muted" style="font-size: 12.5px">Enabled on Each Host's Installed Packages Tab</span></div>
+  {% if hosts %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr>{% include "core/partials/sortable_headers.html" %}</tr></thead>
+        <tbody>
+          {% for h in hosts %}
+            <tr>
+              <td><a href="{% url 'core:host_detail' h.pk %}?tab=packages">{{ h.hostname }}</a></td>
+              <td class="mono">{{ h.ssh_username|default:default_user }}@{{ h.ssh_address|default:h.private_ip|default:h.ip_address }}:{{ h.ssh_port }}</td>
+              <td>{% if h.ssh_host_key %}<span class="badge st-resolved">Confirmed</span>{% elif h.ssh_pending_host_key %}<span class="badge sev-medium">To Confirm</span>{% else %}<span class="muted">Not Contacted Yet</span>{% endif %}</td>
+              <td class="mono nowrap">{{ h.ssh_checked_at|date:"Y-m-d H:i"|default:"—" }}</td>
+              <td>{% include "core/partials/ssh_state.html" with host=h %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty">No Host Has SSH Enabled Yet.</div>
+  {% endif %}
+</section>
+{% endblock %}

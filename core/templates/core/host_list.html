@@ -1,0 +1,122 @@
+{% extends "app.html" %}
+
+{% block title %}Hosts{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Hosts</h1>
+    <p>Scanned Assets and Their Open Findings.</p>
+  </div>
+</div>
+
+{% if recap.total %}
+  <section class="card recap" aria-label="What Was Imported">
+    <div class="card-head">
+      <h2>{% if filtered %}These Hosts{% else %}Everything Imported{% endif %}</h2>
+      <span class="muted" style="font-size: 12.5px">
+        {% if recap.first_scanned %}Scanned {{ recap.first_scanned|date:"j M Y" }} — {{ recap.last_scanned|date:"j M Y" }}{% endif %}
+        {% if filtered %} · with the Filters Below{% endif %}
+      </span>
+    </div>
+    <div class="card-body recap-grid">
+      <div class="recap-cell">
+        <div class="recap-value">{{ recap.total }}</div>
+        <div class="recap-label">Host{{ recap.total|pluralize }}</div>
+        <div class="recap-note">{{ recap.internal }} Internal · {{ recap.external }} External{% if recap.both %} · {{ recap.both }} Both{% endif %}</div>
+      </div>
+      <div class="recap-cell">
+        <div class="recap-value">{{ recap.affected }}</div>
+        <div class="recap-label">With Open Findings</div>
+        <div class="recap-note">{{ recap.clean }} with None</div>
+      </div>
+      <div class="recap-cell">
+        <div class="recap-value">{{ recap.open_findings }}</div>
+        <div class="recap-label">Open Findings</div>
+        <div class="recap-note">Worst Host: {{ recap.worst }}</div>
+      </div>
+      <div class="recap-cell sev-critical">
+        <div class="recap-value">{{ recap.critical_hosts }}</div>
+        <div class="recap-label">Hosts with Critical</div>
+        <div class="recap-note">{{ recap.high_hosts }} with High</div>
+      </div>
+      <div class="recap-cell">
+        <div class="recap-value">{{ recap.with_release }}</div>
+        <div class="recap-label">Ubuntu Release Known</div>
+        <div class="recap-note">{{ recap.with_packages }} with Packages Read</div>
+      </div>
+      <div class="recap-cell st-resolved">
+        <div class="recap-value">{{ recap.fixed_pending }}</div>
+        <div class="recap-label">Fixed by Installed</div>
+        <div class="recap-note">Awaiting a Confirm</div>
+      </div>
+    </div>
+  </section>
+{% endif %}
+
+<section class="card">
+  <form class="filters" method="get">
+    <label class="field field-grow">
+      Hostname or IP (Public or Private)
+      <input type="search" name="q" value="{{ q }}" placeholder="e.g. web-01 or 10.0.4.">
+    </label>
+    <label class="field">
+      Perimeter
+      <select name="perimeter" onchange="this.form.submit()">
+        <option value="">All</option>
+        {% for p in perimeters %}<option value="{{ p.slug }}" {% if perimeter == p %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="field">
+      Tag
+      <select name="tag" onchange="this.form.submit()">
+        <option value="">All</option>
+        <option value="none" {% if tag == "none" %}selected{% endif %}>No Tag</option>
+        {% for t in tags %}<option value="{{ t.pk }}" {% if tag == t %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
+      </select>
+    </label>
+    {% include "core/partials/multi_select.html" with label="Operating System" name="os" choices=os_choices chosen=os_values %}
+    {% if sort %}<input type="hidden" name="sort" value="{{ sort }}"><input type="hidden" name="dir" value="{{ dir }}">{% endif %}
+    <button class="btn btn-ghost" type="submit">Search</button>
+    <a class="btn btn-ghost" href="{% url 'core:host_export' %}{% if export_query %}?{{ export_query }}{% endif %}" title="The Hosts Shown, with the Current Filters, as a CSV File for Excel">Export CSV</a>
+  </form>
+  {% if hosts %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            {% for h in headers %}
+              <th{% if h.url or h.numeric %} class="{% if h.url %}sortable{% endif %}{% if h.numeric %} num{% endif %}"{% endif %} {% if h.active %}aria-sort="{% if h.dir == 'asc' %}ascending{% else %}descending{% endif %}"{% endif %}>
+                {% if h.url %}
+                  <a href="{{ h.url }}" title="Sort by {{ h.label|lower }}">{{ h.label }}<span class="sort-arrow" aria-hidden="true">{% if h.active %}{% if h.dir == "asc" %}▲{% else %}▼{% endif %}{% else %}↕{% endif %}</span></a>
+                {% else %}{{ h.label }}{% endif %}
+              </th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for h in hosts %}
+            <tr>
+              <td><a href="{% url 'core:host_detail' h.pk %}">{{ h.hostname }}</a>{% if not h.is_active %} <span class="muted">(Inactive)</span>{% endif %}{% with tags=h.tags.all %}{% if tags %}<div>{% include "core/partials/tag_chips.html" %}</div>{% endif %}{% endwith %}</td>
+              <td class="mono">{{ h.ip_address }}</td>
+              <td>{% if h.balancer_name %}<span class="badge per-lb" title="{{ h.ip_address }} Is a Load Balancer">{{ h.balancer_name }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+              <td class="mono">{% with ips=h.all_private_ips %}{% if ips %}{{ ips.0 }}{% if ips|length > 1 %} <span class="muted" title="{{ ips|join:", " }}">+{{ ips|length|add:"-1" }}</span>{% endif %}{% else %}—{% endif %}{% endwith %}</td>
+              <td class="mono">{% with names=h.server_names %}{% if names %}{{ names.0 }}{% if names|length > 1 %} <span class="muted" title="{{ names|join:", " }}">+{{ names|length|add:"-1" }}</span>{% endif %}{% else %}<span class="muted">—</span>{% endif %}{% endwith %}</td>
+              <td title="{{ h.os_name }}">{{ h.os_version|default:h.os_name|default:"—"|truncatechars:40 }}</td>
+              <td>{{ h.get_environment_display }}</td>
+              <td class="num">{% if h.open_critical %}<span class="badge sev-critical">{{ h.open_critical }}</span>{% else %}<span class="muted">0</span>{% endif %}</td>
+              <td class="num">{% if h.open_high %}<span class="badge sev-high">{{ h.open_high }}</span>{% else %}<span class="muted">0</span>{% endif %}</td>
+              <td class="num">{% if h.open_medium %}{{ h.open_medium }}{% else %}<span class="muted">0</span>{% endif %}</td>
+              <td class="num">{% if h.open_low %}{{ h.open_low }}{% else %}<span class="muted">0</span>{% endif %}</td>
+              <td class="num">{% if h.open_patched %}<a href="{% url 'core:vulnerability_list' %}?q={{ h.hostname|urlencode }}&amp;patch=fixed_pending" title="Open Findings the Installed Version Already Fixes, Awaiting Confirmation"><span class="badge st-resolved">{{ h.open_patched }}</span></a>{% else %}<span class="muted">0</span>{% endif %}</td>
+              <td class="mono nowrap">{{ h.last_scanned_at|date:"Y-m-d"|default:"—" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty">{% if q %}No Hosts Match “{{ q }}”.{% else %}No Hosts Yet. They Appear After the First Scan Import.{% endif %}</div>
+  {% endif %}
+</section>
+{% endblock %}

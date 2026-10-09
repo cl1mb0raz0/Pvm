@@ -1,0 +1,48 @@
+{% extends "app.html" %}
+
+{% block title %}Reset Data{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="muted" style="font-size: 12.5px"><a href="{% url 'backups:list' %}">Backups</a> / Reset Data</div>
+    <h1 style="margin-top: 4px">Reset Data</h1>
+    <p>Go Back to an Empty Pvm, as Before the First Import.</p>
+  </div>
+</div>
+
+<section class="card card-body stack" style="max-width: 760px">
+  <div class="verification" style="border-left-color: var(--sev-critical); margin: 0">
+    <p style="margin: 0; white-space: normal"><strong>This Deletes:</strong></p>
+    <ul style="margin: 6px 0 0; padding-left: 18px">
+      <li>{{ counts.Host }} Host{{ counts.Host|pluralize }}, with Their Installed Packages ({{ counts.InstalledPackage }}) and Network Details</li>
+      <li>{{ counts.VulnerabilityFinding }} Finding{{ counts.VulnerabilityFinding|pluralize }}, with Their Ubuntu Checks ({{ counts.PatchCheck }}) and Verifications ({{ counts.DistroPatchVerification }})</li>
+      <li>{{ counts.ScanImport }} Import{{ counts.ScanImport|pluralize }} and Their Detection History ({{ counts.ScanDetectionEvent }} Rows)</li>
+      <li>{{ counts.VulnerabilityDefinition }} QID Definition{{ counts.VulnerabilityDefinition|pluralize }} and {{ counts.LoadBalancer }} Load Balancer Mark{{ counts.LoadBalancer|pluralize }}</li>
+    </ul>
+  </div>
+
+  <div class="muted" style="font-size: 13px">
+    <strong style="color: var(--text)">Kept:</strong> Users and Their MFA, Teams, Perimeters, SLA Policies, the Audit Log,
+    the Backups, the Uploaded Mappings (IP Mapping and Balancer Configurations, Applied Again to Hosts of Later Scans) and the CVE Cache (Public NVD and Ubuntu Data).
+    <strong style="color: var(--text)">A Full Backup Is Taken First</strong>: Restoring It Undoes the Reset.
+  </div>
+
+  <form method="post" class="stack" style="gap: 12px">
+    {% csrf_token %}
+    {% if error %}<ul class="errors"><li>{{ error }}</li></ul>{% endif %}
+    <label class="choice" style="font-size: 13.5px">
+      <input type="checkbox" name="delete_files" value="1" checked>
+      <span>Also Delete the {{ counts.report_files }} Uploaded Qualys Report File{{ counts.report_files|pluralize }} <span class="muted">(Not Part of Backups: This Cannot Be Undone)</span></span>
+    </label>
+    <label class="field">
+      Type {{ confirmation }} to Confirm
+      <input type="text" name="confirm" autocomplete="off" required style="max-width: 240px">
+    </label>
+    <div style="display: flex; gap: 8px">
+      <button class="btn btn-danger" type="submit">Delete All Data</button>
+      <a class="btn btn-ghost" href="{% url 'backups:list' %}">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

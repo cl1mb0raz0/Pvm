@@ -1,0 +1,16 @@
+{% extends "auth.html" %}
+
+{% block title %}Sign In{% endblock %}
+
+{% block content %}
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <ul class="errors">{% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}</ul>
+  {% endif %}
+  <input type="text" name="username" value="{{ form.username.value|default:'' }}" placeholder="Username" aria-label="Username" autocomplete="username" autofocus required>
+  <input type="password" name="password" placeholder="Password" aria-label="Password" autocomplete="current-password" required>
+  <input type="hidden" name="next" value="{{ next }}">
+  <button class="btn btn-block" type="submit">Go...</button>
+</form>
+{% endblock %}

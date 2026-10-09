@@ -1,0 +1,61 @@
+{% load pvm %}
+<div id="import-status" {% if running %}hx-get="{% url 'core:import_detail' scan_import.pk %}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+  {% if scan_import.status == "pending" %}
+    <section class="card card-body stack">
+      <div><span class="badge imp-pending">Awaiting Columns</span></div>
+      <p style="margin: 0">The File Was Uploaded but No Columns Have Been Chosen Yet.</p>
+      {% if user|can_edit %}<div><a class="btn" href="{% url 'core:import_mapping' scan_import.pk %}">Choose Columns</a></div>{% endif %}
+    </section>
+  {% elif running %}
+    <section class="card card-body stack">
+      <div><span class="badge imp-parsing">{{ scan_import.get_status_display }}</span></div>
+      <p style="margin: 0">{% if scan_import.status == "downloading" %}Downloading the Scan Results from Qualys.{% else %}Processing the Report.{% endif %} This Page Updates by Itself.</p>
+      {% if user|can_edit %}
+        <form method="post" action="{% url 'core:import_stop' scan_import.pk %}"
+              onsubmit="return confirm('Stop This Import? What It Has Started to Write Is Rolled Back, and Nothing Is Imported.')">
+          {% csrf_token %}<button class="btn btn-ghost" type="submit" style="color: var(--sev-critical)">Stop Import</button>
+        </form>
+      {% endif %}
+    </section>
+  {% elif scan_import.status == "failed" %}
+    <section class="card card-body stack">
+      <div><span class="badge imp-failed">Failed</span></div>
+      <p style="margin: 0">{{ scan_import.error_message }}</p>
+      {% if user|can_edit %}
+        <form method="post" action="{% url 'core:import_discard' scan_import.pk %}">
+          {% csrf_token %}<button class="btn btn-ghost" type="submit">Discard This Import</button>
+        </form>
+      {% endif %}
+    </section>
+  {% else %}
+    {% if scan_import.summary.qualys.perimeter_warning %}
+      <section class="card card-body notice-danger" style="margin-bottom: 16px"><strong>Check the Perimeter.</strong> {{ scan_import.summary.qualys.perimeter_warning }}</section>
+    {% endif %}
+    <section class="kpis" style="grid-template-columns: repeat(3, minmax(0, 1fr))">
+      <div class="card kpi"><div class="kpi-label">Hosts</div><div class="kpi-value">{{ result.hosts_new|add:result.hosts_updated }}</div><div class="kpi-delta">{{ result.hosts_new }} New, {{ result.hosts_updated }} Already Known</div></div>
+      <div class="card kpi st-new"><div class="kpi-label">New Findings</div><div class="kpi-value">{{ result.findings_new }}</div><div class="kpi-delta">First Seen in This Scan</div></div>
+      <div class="card kpi"><div class="kpi-label">Still Open</div><div class="kpi-value">{{ result.findings_still_open }}</div><div class="kpi-delta">Already Tracked, Seen Again</div></div>
+      <div class="card kpi st-needs_review"><div class="kpi-label">Reopened</div><div class="kpi-value">{{ result.findings_reopened }}</div><div class="kpi-delta">Were Resolved, Now Back: Needs Review</div></div>
+      <div class="card kpi st-resolved"><div class="kpi-label">Resolved</div><div class="kpi-value">{{ result.findings_resolved }}</div><div class="kpi-delta">On These Hosts, No Longer Detected</div></div>
+      {% if result.findings_verified %}
+        <div class="card kpi st-resolved"><div class="kpi-label">Verified Not Vulnerable</div><div class="kpi-value">{{ result.findings_verified }}</div><div class="kpi-delta">Detected Again, Kept Resolved (Distro Patch Verified)</div></div>
+      {% endif %}
+      <div class="card kpi"><div class="kpi-label">Rows Skipped</div><div class="kpi-value">{{ skipped_total }}</div>
+        <div class="kpi-delta">{% for reason, count in skipped.items %}<div>{{ count }} {{ reason }}</div>{% empty %}None{% endfor %}</div>
+      </div>
+    </section>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap">
+      <a class="btn" href="{% url 'core:vulnerability_list' %}?import={{ scan_import.pk }}&amp;status=all">View Findings</a>
+      <a class="btn btn-ghost" href="{% url 'core:host_list' %}">View Hosts</a>
+      {% if pre_import_backup and user|is_super_admin %}
+        <a class="btn btn-ghost" href="{% url 'backups:restore' pre_import_backup.pk %}" style="margin-left: auto">Undo This Import</a>
+      {% endif %}
+    </div>
+    {% if pre_import_backup %}
+      <p class="muted" style="font-size: 12.5px">
+        Backup #{{ pre_import_backup.pk }} Was Taken Just Before This Import. Undoing the Import Restores It,
+        Which Also Removes Anything Done After It.
+      </p>
+    {% endif %}
+  {% endif %}
+</div>

@@ -1,0 +1,6 @@
+{% load pvm %}{% with s=f.as_of %}{% if s.source == "snapshot" %}
+  {% if s.resolved %}<span class="muted" title="Resolved by That Date">—</span>
+  {% else %}<span class="prio prio-{{ s.priority_level }}" title="P{{ s.priority_level }} {{ s.priority_label }}, Score {{ s.priority_score }}/100 · {{ s.note }}">P{{ s.priority_level }}</span> <span class="muted mono" style="font-size: 11px">{{ s.priority_score }}</span>{% endif %}
+{% elif s %}<span class="prio prio-{{ f.priority_level }}" title="P{{ f.priority_level }} {{ f.priority_label }}, Score {{ f.priority_score }}/100 · Today's Value: the Scans Alone Do Not Say What the Priority Was Then">P{{ f.priority_level }}</span> <span class="muted mono" style="font-size: 11px">{{ f.priority_score }}</span>
+{% elif f.status == "resolved" %}<span class="muted" title="Resolved: No Longer Prioritised">—</span>
+{% else %}<span class="prio prio-{{ f.priority_level }}" title="P{{ f.priority_level }} {{ f.priority_label }}, Score {{ f.priority_score }}/100{% for label, points in f.priority_factors %}&#10;{{ points|signed }}  {{ label }}{% endfor %}">P{{ f.priority_level }}</span> <span class="muted mono" style="font-size: 11px">{{ f.priority_score }}</span>{% endif %}{% endwith %}

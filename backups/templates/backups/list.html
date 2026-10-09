@@ -1,0 +1,119 @@
+{% extends "app.html" %}
+{% load pvm %}
+
+{% block title %}Backups{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Backups</h1>
+    <p>Full Copies of All Pvm Data. One Is Taken Automatically Before Every Import and Before Every Restore.</p>
+  </div>
+  <form method="post" action="{% url 'backups:create' %}" style="display: flex; gap: 8px; align-items: end">
+    {% csrf_token %}
+    <label class="field">
+      Note (Optional)
+      <input type="text" name="note" maxlength="255" placeholder="e.g. before cleaning up teams">
+    </label>
+    <button class="btn" type="submit">Backup Now</button>
+  </form>
+</div>
+
+{% if user|can_manage_backups %}
+  <section class="card card-body" style="border-color: color-mix(in srgb, var(--sev-critical) 45%, var(--border)); display: flex; align-items: center; justify-content: space-between; gap: 16px">
+    <div>
+      <strong style="color: var(--sev-critical)">FULL BACKUP</strong>
+      <p class="muted" style="margin: 4px 0 0; font-size: 12.5px">
+        Everything Pvm Keeps on Disk, in One File: the Database (Same as "Backup Now") plus the Raw Qualys Report
+        Files, Not Included in a Regular Backup. Not Destructive — Only Creates a File, Larger and Slower than a
+        Regular Backup. The Only Copy That Is Enough on Its Own to Move Pvm to Another Server (Together with
+        <span class="mono">.env</span>, Kept Separately — Never Bundled Here).
+      </p>
+    </div>
+    <form method="post" action="{% url 'backups:create_full' %}">
+      {% csrf_token %}
+      <button class="btn btn-danger-ghost" type="submit" style="font-weight: 700; white-space: nowrap">FULL BACKUP</button>
+    </form>
+  </section>
+{% endif %}
+
+<section class="card">
+  {% if backups %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>{% include "core/partials/sortable_headers.html" %}</tr>
+        </thead>
+        <tbody>
+          {% for b in backups %}
+            <tr>
+              <td class="mono">{{ b.pk }}</td>
+              <td class="mono nowrap">{{ b.created_at|date:"Y-m-d H:i:s" }}</td>
+              <td>
+                {% if b.kind == "pre_import" %}Before <a href="{% url 'core:import_detail' b.scan_import_id %}">{% if b.import_name %}{{ b.import_name }}{% else %}Import #{{ b.scan_import_id }}{% endif %}</a>{% else %}{{ b.get_kind_display }}{% endif %}
+                {% if b.full %}<span class="badge" style="color: var(--sev-critical); border-color: var(--sev-critical)" title="Also Includes the Raw Qualys Report Files">Full</span>{% endif %}
+                <form method="post" action="{% url 'backups:rename' b.pk %}" class="rename-form">
+                  {% csrf_token %}
+                  <input type="text" name="note" maxlength="255" value="{{ b.note }}" placeholder="Add a Name…">
+                  <button class="btn-link" type="submit">Save</button>
+                </form>
+                {% if b.restored_at %}<div class="muted" style="font-size: 12.5px">Restored {{ b.restored_at|date:"Y-m-d H:i" }} by {{ b.restored_by }}</div>{% endif %}
+              </td>
+              <td>{{ b.created_by|default:"—" }}</td>
+              <td class="muted nowrap" style="font-size: 12.5px">
+                {% if b.contents %}{{ b.contents.hosts }} Hosts · {{ b.contents.findings }} Findings<br>{{ b.contents.imports }} Imports · {{ b.contents.users }} User{{ b.contents.users|pluralize }}{% if b.full %}<br>{{ b.contents.report_files }} Report Folder{{ b.contents.report_files|pluralize }}{% endif %}{% else %}—{% endif %}
+              </td>
+              <td class="num mono">{{ b.size_bytes|filesizeformat }}</td>
+              <td>
+                {% if b.status == "failed" %}<span class="badge imp-failed" title="{{ b.error_message }}">Failed</span>
+                {% elif not b.file_present %}<span class="badge imp-failed">File Missing</span>
+                {% else %}<span class="badge imp-completed">Available</span>{% endif %}
+              </td>
+              <td class="nowrap">
+                {% if user|is_super_admin %}
+                  <div style="display: flex; gap: 12px; align-items: center; justify-content: flex-end">
+                    {% if b.file_present %}
+                      <a href="{% url 'backups:restore' b.pk %}">Restore</a>
+                      <a href="{% url 'backups:download' b.pk %}">Download</a>
+                    {% endif %}
+                    <form method="post" action="{% url 'backups:delete' b.pk %}" onsubmit="return confirm('Delete Backup #{{ b.pk }}? The File Is Removed Permanently.')">
+                      {% csrf_token %}<button class="btn-link" type="submit" style="color: var(--sev-critical)">Delete</button>
+                    </form>
+                  </div>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty">No Backups Yet.</div>
+  {% endif %}
+</section>
+{% if user|is_super_admin %}
+  <section class="card card-body danger-zone">
+    <div>
+      <strong>Start Over</strong>
+      <p class="muted" style="margin: 4px 0 0">Delete All Hosts, Vulnerabilities and Import History. A Backup Is Taken First, so It Can Be Undone.</p>
+    </div>
+    <a class="btn btn-danger-ghost" href="{% url 'backups:reset' %}">Reset Data…</a>
+  </section>
+  <section class="card card-body danger-zone" style="margin-top: 12px">
+    <div>
+      <strong>Delete All Backups</strong>
+      <p class="muted" style="margin: 4px 0 0">Delete Every Backup Taken so Far, Files Included. The Current Data Is Kept. Cannot Be Undone.</p>
+    </div>
+    <a class="btn btn-danger-ghost" href="{% url 'backups:delete_all' %}">Delete All Backups…</a>
+  </section>
+  <section class="card card-body danger-zone" style="margin-top: 12px">
+    <div>
+      <strong>Factory Reset</strong>
+      <p class="muted" style="margin: 4px 0 0">Delete Everything, Backups and Users Included, as a Fresh Installation. Cannot Be Undone; Needs an Authenticator Code.</p>
+    </div>
+    <a class="btn btn-danger-ghost" href="{% url 'backups:factory_reset' %}">Factory Reset…</a>
+  </section>
+{% else %}
+  <p class="muted" style="font-size: 12.5px">Restoring, Deleting and Downloading Backups Is Reserved to Super Admins.</p>
+{% endif %}
+{% endblock %}

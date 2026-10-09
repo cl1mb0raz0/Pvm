@@ -1,0 +1,21 @@
+Scan Results,"Synthetic test report, no real data"
+Report Title,PVM fixture
+
+IP,DNS,NetBIOS,OS,IP Status,QID,Title,Type,Severity,Port,Protocol,FQDN,SSL,CVE ID,Vendor Reference,Bugtraq ID,Threat,Impact,Solution,Exploitability,Associated Malware,Results,PCI Vuln,Instance,Category
+192.0.2.10,portal.example.test,,EulerOS / Ubuntu / Fedora / Tiny Core Linux / Linux 3.x / IBM / FortiSOAR / F5 Networks Big-IP / Paloalto networks Global Protect PAN-OS,"host scanned, found vuln",86729,AutoComplete Attribute Not Disabled for Password in Form Based Authentication,Vuln,2,443,tcp,,,,,,The Web server allows form based authentication without disabling the AutoComplete feature.,Stored values may be retrieved by an unauthorized user.,"Add autocomplete=""off"" to the form.",,,"GET /login HTTP/1.1
+Host: portal.example.test
+<input type=""password"" name=""password"">",no,,Web server
+192.0.2.10,portal.example.test,,EulerOS / Ubuntu / Fedora / Tiny Core Linux / Linux 3.x / IBM / FortiSOAR / F5 Networks Big-IP / Paloalto networks Global Protect PAN-OS,"host scanned, found vuln",38909,SHA1 deprecated setting for SSH,Vuln,2,22,tcp,,,,,,"The SSH protocol (Secure Shell) is a method for secure remote login.
+The target is using deprecated SHA1 cryptographic settings to communicate.",Vulnerable to collision attacks.,"Avoid using deprecated cryptographic settings.
+Use best practices when configuring SSH, e.g. disable ""hmac-sha1"".",,,"Type	Name
+host key algorithm	ssh-rsa",no,,General remote services
+192.0.2.10,api.example.test,,,"host scanned, found vuln",38909,SHA1 deprecated setting for SSH,Vuln,2,22,tcp,,,,,,"The SSH protocol (Secure Shell) is a method for secure remote login.
+The target is using deprecated SHA1 cryptographic settings to communicate.",Vulnerable to collision attacks.,"Avoid using deprecated cryptographic settings.
+Use best practices when configuring SSH, e.g. disable ""hmac-sha1"".",,,"Type	Name
+host key algorithm	ssh-rsa",no,,General remote services
+192.0.2.10,api.example.test,,,"host scanned, found vuln",38170,SSL Certificate - Subject Common Name Does Not Match Server FQDN,Vuln,2,465,tcp,,over ssl,,,,A certificate whose Subject commonName does not match the server FQDN offers only encryption without authentication.,,Install a matching server certificate.,,,Certificate #0 CN=*.example.test doesn't resolve,no,,General remote services
+192.0.2.10,api.example.test,,,"host scanned, found vuln",38170,SSL Certificate - Subject Common Name Does Not Match Server FQDN,Vuln,2,465,tcp,,over ssl,,,,,,,,,Certificate #1 CN=legacy.example.test doesn't resolve,no,,General remote services
+192.0.2.20,,,Ubuntu 22.04,"host scanned, found vuln",38739,OpenSSH Terrapin Prefix Truncation,Vuln,3,22,tcp,,,"CVE-2023-48795, CVE-2023-51385",,,Terrapin attack on SSH channel integrity.,,Upgrade OpenSSH.,,,,no,,General remote services
+192.0.2.20,,,Ubuntu 22.04,"host scanned, found vuln",150440,Apache Log4j Remote Code Execution,Vuln,5,8080,tcp,,,CVE-2021-44228,,,,,,,,,no,,General remote services
+192.0.2.20,,,Ubuntu 22.04,"host scanned, found vuln",11,Potential TLS weakness,Practice,4,443,tcp,,,,,,,,,,,,no,,General remote services
+192.0.2.20,,,Ubuntu 22.04,"host scanned, found vuln",6,DNS Host Name,Ig,1,,,,,,,,,,,,,,no,,General remote services

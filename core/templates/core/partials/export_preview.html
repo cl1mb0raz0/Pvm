@@ -1,0 +1,46 @@
+{# What the export would hold, recomputed by HTMX while the filters change. #}
+<div class="card-head" style="border-top: 1px solid var(--border)">
+  <h2>This Export Would Hold</h2>
+  <span class="muted" style="font-size: 12.5px">
+    {% if applied %}{% for label, value in applied %}{{ label }}: {{ value }}{% if not forloop.last %} · {% endif %}{% endfor %}{% else %}No Filter: Everything{% endif %}
+  </span>
+</div>
+{% if as_of %}
+  <div class="as-of-band">
+    <strong>As Of {{ as_of|date:"Y-m-d" }}</strong>
+    <span class="muted">{{ as_of_note }}</span>
+  </div>
+{% endif %}
+<div class="card-body">
+  <div class="kpis" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px">
+    <div class="card kpi">
+      <div class="kpi-label">{% if dataset == "findings" %}Findings{% else %}Hosts{% endif %}</div>
+      <div class="kpi-value">{{ summary.total }}</div>
+      {% if hosts is not None %}<div class="kpi-delta">On {{ hosts }} Host{{ hosts|pluralize }}</div>{% endif %}
+    </div>
+    {% for label, count in summary.severities %}
+      <div class="card kpi{% if label == "Critical" %} sev-critical{% elif label == "High" %} sev-high{% endif %}">
+        <div class="kpi-label">{{ label }}</div>
+        <div class="kpi-value">{{ count }}</div>
+      </div>
+    {% endfor %}
+    {% if kev %}
+      <div class="card kpi sev-critical"><div class="kpi-label">In CISA KEV</div><div class="kpi-value">{{ kev }}</div></div>
+    {% endif %}
+  </div>
+
+  {% if summary.priorities or summary.statuses %}
+    <div class="kpis" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 10px">
+      {% for label, count in summary.priorities %}
+        <div class="card kpi"><div class="kpi-label">{{ label }}</div><div class="kpi-value">{{ count }}</div></div>
+      {% endfor %}
+      {% for label, count in summary.statuses %}
+        <div class="card kpi{% if label == "Resolved" %} st-resolved{% endif %}"><div class="kpi-label">{{ label }}</div><div class="kpi-value">{{ count }}</div></div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {% if not summary.total %}
+    <p class="muted" style="margin: 10px 0 0; font-size: 12.5px">Nothing Matches These Filters: the Export Would Be Empty.</p>
+  {% endif %}
+</div>

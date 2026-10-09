@@ -1,0 +1,254 @@
+{% extends "app.html" %}
+{% load pvm %}
+
+{% block title %}Qualys Csam{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Qualys Csam</h1>
+    <p>Details Qualys Csam Has about Your Hosts: Ubuntu or Rocky Linux Release and Installed Packages from the Cloud Agent (Also Windows Installed Software, Informational Only), Operating System, Qualys Tags. You Choose What to Import.</p>
+  </div>
+</div>
+
+<section class="card">
+  {% if not configured %}
+    <div class="card-body notice-danger" style="border: 0"><strong>Qualys Csam Is Not Configured.</strong> <span class="muted">Set QUALYS_GATEWAY_URL, QUALYS_USERNAME and QUALYS_PASSWORD in .env.</span></div>
+  {% else %}
+    {% include "core/imports/partials/csam_status.html" %}
+    {% if search.state == "done" and not running %}
+      {% if todo.count %}
+        <div class="csam-todo" role="status">
+          <div>
+            <strong>Import {{ todo.count }} Host{{ todo.count|pluralize }}: Qualys Csam Has Details Pvm Does Not Have Yet.</strong>
+            <div class="muted" style="font-size: 12.5px">Read from the search of {{ todo.searched_at|date:"j M Y, H:i" }}{% if todo.stale %}, which is more than a week old: Csam may know more by now, so you may want to search again first{% endif %}.</div>
+          </div>
+          <a class="btn btn-danger" href="{% url 'core:qualys_csam' %}?select=pending#proposals">Review &amp; Import</a>
+        </div>
+      {% elif todo.stale %}
+        <div class="csam-todo stale" role="status">
+          <div><strong>Nothing to Import from the Last Search, but It Is Old.</strong> <span class="muted" style="font-size: 12.5px">Searched {{ todo.searched_at|date:"j M Y, H:i" }}: Csam may know more by now.</span></div>
+        </div>
+      {% else %}
+        <div class="muted" style="padding: 10px 16px; border-top: 1px solid var(--border); font-size: 12.5px">Pvm Is Aligned with the Last Search: Nothing to Import.</div>
+      {% endif %}
+    {% endif %}
+    <form class="filters" method="get" style="border-top: 1px solid var(--border)">
+      <label class="field field-grow">
+        Host Name or IP Address
+        <input type="search" name="q" value="{{ q }}" placeholder="e.g. app-srv-05 or 10.20.4.86">
+      </label>
+      <button class="btn btn-ghost" type="submit">Search in Qualys Csam</button>
+      {% if q %}<a class="btn btn-ghost" href="{% url 'core:qualys_csam' %}">Clear</a>{% endif %}
+    </form>
+    {% if q %}
+      <div class="card-head" style="border-bottom: 0"><h2>In Qualys Csam: “{{ q }}”</h2><span class="muted" style="font-size: 12.5px">Live, Also Hosts Not in Pvm · Names Containing the Text, IP Addresses Only Whole</span></div>
+      {% if lookup_error %}
+        <div class="card-body notice-danger" style="border: 0"><span class="muted">{{ lookup_error }}</span></div>
+      {% elif lookup %}
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Qualys Asset</th><th>Addresses</th><th>Agent</th><th>Operating System</th><th>Installed Packages</th><th>Qualys Tags</th><th>In Pvm</th></tr></thead>
+            <tbody>
+              {% for a in lookup %}
+                <tr>
+                  <td>{{ a.name|default:"—" }}{% if a.dns and a.dns != a.name %}<div class="mono muted" style="font-size: 11.5px">{{ a.dns }}</div>{% endif %}{% if a.criticality %}<div class="muted" style="font-size: 11.5px">Criticality {{ a.criticality }}</div>{% endif %}</td>
+                  <td class="mono" style="font-size: 12.5px">{% for ip in a.addresses %}{{ ip }}{% if not forloop.last %}<br>{% endif %}{% empty %}—{% endfor %}</td>
+                  <td class="nowrap" style="font-size: 12.5px">{% if a.has_agent %}<span class="badge st-resolved">Cloud Agent</span>{% if a.agent_checked_in %}<div class="muted">Last Seen {{ a.agent_checked_in|date:"j M Y" }}</div>{% endif %}{% else %}<span class="muted">Scanner Only</span>{% endif %}</td>
+                  <td style="font-size: 12.5px">{{ a.os_full|default:"—" }}{% if a.release_label %}<div><strong>{{ a.release_label }}</strong></div>{% endif %}</td>
+                  <td style="font-size: 12.5px">
+                    {% if a.packages %}
+                      <details><summary style="cursor: pointer"><strong>{{ a.packages|length }}</strong> Packages</summary>
+                        <pre class="cato-output">{% for name, version in a.packages %}{{ name }} {{ version }}
+{% endfor %}</pre>
+                      </details>
+                    {% elif a.has_agent and a.ubuntu_release %}<span class="muted">Not Loaded (More than 10 Results)</span>{% else %}<span class="muted">—</span>{% endif %}
+                  </td>
+                  <td>{% for t in a.tags %}<span class="tag">{{ t }}</span>{% empty %}<span class="muted">—</span>{% endfor %}</td>
+                  <td style="font-size: 12.5px">
+                    {% for h, how in a.pvm_hosts %}<a href="{% url 'core:host_detail' h.pk %}">{{ h.hostname }}</a> <span class="muted">({{ how }})</span><br>{% endfor %}
+                    {% for h in a.same_ip_hosts %}<span class="muted">Same IP: <a href="{% url 'core:host_detail' h.pk %}">{{ h.hostname }}</a></span><br>{% endfor %}
+                    {% if not a.pvm_hosts and not a.same_ip_hosts %}<span class="muted">Not in Pvm</span>{% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty">Qualys Csam Has No Asset Named Like “{{ q }}” or with That IP Address.</div>
+      {% endif %}
+    {% endif %}
+
+    <form class="filters" method="get" style="border-top: 1px solid var(--border)">
+      {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+      <label class="field field-grow">
+        Software Name
+        <input type="search" name="sw" value="{{ sw }}" placeholder="e.g. log4j or openssl">
+      </label>
+      <button class="btn btn-ghost" type="submit">Search a Software in Qualys Csam</button>
+      {% if sw %}<a class="btn btn-ghost" href="{% url 'core:qualys_csam' %}{% if q %}?q={{ q }}{% endif %}">Clear</a>{% endif %}
+    </form>
+    {% if sw %}
+      <div class="card-head" style="border-bottom: 0"><h2>“{{ sw }}” in Qualys Csam</h2><span class="muted" style="font-size: 12.5px">Live, Every Host with It Installed, Also Not in Pvm · The Whole Subscription</span></div>
+      {% if software_error %}
+        <div class="card-body notice-danger" style="border: 0"><span class="muted">{{ software_error }}</span></div>
+      {% elif software_results %}
+        {% if software_truncated %}
+          <div class="card-body" style="padding-top: 0; padding-bottom: 8px"><span class="muted" style="font-size: 12.5px">More than {{ software_results|length }} Assets Match; Narrow the Search for a Full List.</span></div>
+        {% endif %}
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Qualys Asset</th><th>Addresses</th><th>Operating System</th><th>Matching Software</th><th>In Pvm</th></tr></thead>
+            <tbody>
+              {% for a in software_results %}
+                <tr>
+                  <td>{{ a.name|default:"—" }}{% if a.dns and a.dns != a.name %}<div class="mono muted" style="font-size: 11.5px">{{ a.dns }}</div>{% endif %}</td>
+                  <td class="mono" style="font-size: 12.5px">{% for ip in a.addresses %}{{ ip }}{% if not forloop.last %}<br>{% endif %}{% empty %}—{% endfor %}</td>
+                  <td style="font-size: 12.5px">{{ a.os_full|default:"—" }}</td>
+                  <td style="font-size: 12.5px">
+                    {% for name, version in a.matches %}<div class="mono">{{ name }} {{ version }}</div>{% empty %}<span class="muted">Not in the Installed List Read (Scanner Only, or Agent Not Yet Inventoried)</span>{% endfor %}
+                  </td>
+                  <td style="font-size: 12.5px">
+                    {% for h, how in a.pvm_hosts %}<a href="{% url 'core:host_detail' h.pk %}">{{ h.hostname }}</a> <span class="muted">({{ how }})</span><br>{% endfor %}
+                    {% if not a.pvm_hosts %}<span class="muted">Not in Pvm</span>{% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty">No Asset in Qualys Csam Has Software Matching “{{ sw }}”.</div>
+      {% endif %}
+    {% endif %}
+  {% endif %}
+
+  {% if search.state == "done" %}
+    <form id="proposals" method="post" action="{% url 'core:qualys_csam_import' %}">
+      {% csrf_token %}
+      <div class="filters triage-bar">
+        <strong class="triage-title">Import</strong>
+        <label class="choice"><input type="checkbox" name="kind_release" value="1" checked> <span>Release (Ubuntu or Rocky Linux)</span></label>
+        <label class="choice"><input type="checkbox" name="kind_packages" value="1" checked> <span>Installed Packages <span class="muted">(Replace the Host's List)</span></span></label>
+        <label class="choice"><input type="checkbox" name="kind_os" value="1" checked> <span>Operating System</span></label>
+        <label class="choice"><input type="checkbox" name="kind_tags" value="1"> <span>Qualys Tags as Pvm Tags</span></label>
+        <button class="btn" type="submit" style="margin-left: auto">Import Selected</button>
+      </div>
+      {% if manual_at_risk_count %}
+        <div class="filters" style="padding-top: 0; padding-bottom: 8px; font-size: 12.5px">
+          <label class="choice" style="color: var(--sev-critical)">
+            <input type="checkbox" name="remove_manual_packages" value="1">
+            <span>Also Remove Manually-Added Packages Csam No Longer Reports ({{ manual_at_risk_count }} Host{{ manual_at_risk_count|pluralize }} Below Would Lose One) — Off by Default</span>
+          </label>
+        </div>
+      {% endif %}
+      {% if q %}<div class="card-head" style="border-bottom: 0"><h2>Proposals for Your Hosts Matching “{{ q }}”</h2></div>{% endif %}
+      <div class="filters" style="padding-top: 8px; padding-bottom: 8px; font-size: 13px">
+        {% if q %}<span class="muted">Every Found Host Matching the Search, Changed or Not.</span>{% elif only_changes %}<span class="muted">Showing Only Hosts with Something New.</span> <a href="?all=1">Show All Found Hosts</a>{% else %}<span class="muted">Showing All Found Hosts.</span> <a href="?">Only Hosts with Something New</a>{% endif %}
+      </div>
+      {% if rows %}
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th class="select"><input type="checkbox" aria-label="Select All" onclick="document.querySelectorAll('input[name=proposal]').forEach(c => c.checked = this.checked)"></th>
+              {% include "core/partials/sortable_headers.html" %}
+            </tr></thead>
+            <tbody>
+              {% for r in rows %}
+                <tr>
+                  <td class="select"><input type="checkbox" name="proposal" value="{{ r.p.pk }}" {% if preselect_pending and r.pending %}checked{% endif %} aria-label="Select {{ r.host.hostname }}"></td>
+                  <td>
+                    <a href="{% url 'core:host_detail' r.host.pk %}">{{ r.host.hostname }}</a><br><span class="mono muted">{{ r.host.ip_address }}</span>
+                    {% if r.p.imported_at %}<div style="font-size: 11.5px"><span class="badge st-resolved">Imported {{ r.p.imported_at|date:"j M H:i" }}</span></div>{% endif %}
+                  </td>
+                  <td>
+                    {{ r.p.asset_name|default:"—" }}
+                    <div class="muted" style="font-size: 11.5px">Matched by {{ r.p.matched_by }}{% if r.p.criticality %} · Criticality {{ r.p.criticality }}{% endif %}</div>
+                  </td>
+                  <td class="nowrap" style="font-size: 12.5px">
+                    {% if r.p.has_agent %}<span class="badge st-resolved">Cloud Agent</span>{% if r.p.agent_checked_in %}<div class="muted">Last Seen {{ r.p.agent_checked_in|date:"j M Y" }}</div>{% endif %}
+                    {% else %}<span class="muted" title="Inventory from Scans Only: No Package List">Scanner Only</span>{% endif %}
+                  </td>
+                  <td style="font-size: 12.5px">
+                    {% if r.p.ubuntu_release %}
+                      {% if r.diff.release %}<span class="muted">{{ r.host.get_ubuntu_release_display|default:"Not Set" }} →</span> <strong>{{ r.release_label }}</strong>{% else %}<span class="muted">{{ r.release_label }} (Same)</span>{% endif %}
+                    {% else %}<span class="muted">—</span>{% endif %}
+                  </td>
+                  <td style="font-size: 12.5px">
+                    {% if r.p.packages %}
+                      <strong>{{ r.p.packages|length }}</strong> Found
+                      {% if r.diff.packages %}
+                        <details>
+                          <summary class="muted" style="cursor: pointer">{{ r.counts.new }} New · {{ r.counts.changed }} Changed · {{ r.counts.missing }} Removed{% if r.missing_manual %} <strong style="color: var(--sev-critical)">· {{ r.missing_manual|length }} Manual</strong>{% endif %}</summary>
+                          <ul class="history">
+                            {% for name, before, after in r.changed %}<li class="mono">{{ name }} {{ before }} → {{ after }}</li>{% endfor %}
+                            {% for name in r.new %}<li class="mono">+ {{ name }}</li>{% endfor %}
+                            {% for name in r.missing %}
+                              {% if name in r.missing_manual %}
+                                <li class="mono" style="color: var(--sev-critical)" title="Manually Added, Kept Unless &quot;Also Remove Manually-Added Packages&quot; Is Ticked">− {{ name }} (Manual)</li>
+                              {% else %}
+                                <li class="mono muted">− {{ name }}</li>
+                              {% endif %}
+                            {% endfor %}
+                          </ul>
+                        </details>
+                        {% if r.missing_manual %}<div style="color: var(--sev-critical); font-size: 11.5px; margin-top: 2px">Kept Unless Confirmed Above</div>{% endif %}
+                      {% else %}<div class="muted">Same as Now</div>{% endif %}
+                    {% elif r.p.has_agent %}<span class="muted">Not Ubuntu, Windows or Rocky</span>{% else %}<span class="muted">—</span>{% endif %}
+                  </td>
+                  <td style="font-size: 12.5px">{% if r.diff.os %}<strong>{{ r.p.os_full }}</strong>{% else %}<span class="muted">{{ r.p.os_full|default:"—" }}</span>{% endif %}</td>
+                  <td>{% for t in r.p.qualys_tags %}<span class="tag">{{ t }}</span>{% empty %}<span class="muted">—</span>{% endfor %}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty">{% if q %}None of Your Hosts Found by the Last Search Matches “{{ q }}”.{% elif only_changes %}Nothing New: Csam Knows Nothing That Your Hosts Do Not Have Already.{% else %}None of Your Hosts Was Found in Qualys Csam.{% endif %}</div>
+      {% endif %}
+    </form>
+  {% endif %}
+</section>
+
+{% if gaps %}
+  <section class="card">
+    <div class="card-head">
+      <h2>Hosts Without Inventory</h2>
+      <span class="muted" style="font-size: 12.5px">
+        {{ gap_counts.total }} Host{{ gap_counts.total|pluralize }} with No Installed Packages and No Ubuntu Release in Pvm ·
+        {{ gap_counts.to_import }} Ready to Import · {{ gap_counts.no_agent }} Without the Cloud Agent · {{ gap_counts.unknown }} Not in Csam
+      </span>
+    </div>
+    <div class="card-body" style="padding-bottom: 0">
+      <p class="muted" style="margin: 0; font-size: 12.5px">
+        Without These, the Ubuntu or Rocky Linux Check Cannot Say Whether a Finding Is Already Fixed. Ready to Import
+        Ones Are in the Table Above; the Others Need the Cloud Agent Installed, "Ask Server" over Ssh, or the Package
+        List by Mail.
+      </p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>{% include "core/partials/sortable_headers.html" with headers=gap_headers %}</tr></thead>
+        <tbody>
+          {% for g in gaps %}
+            <tr>
+              <td><a href="{% url 'core:host_detail' g.host.pk %}?tab=packages">{{ g.host.hostname }}</a></td>
+              <td class="mono">{{ g.host.ip_address }}</td>
+              <td class="mono">{{ g.private|default:"—" }}</td>
+              <td class="muted">{{ g.tags|default:"—" }}</td>
+              <td>
+                {% if g.why == "In Csam with Packages, Not Imported Yet" %}<span class="badge st-resolved">{{ g.why }}</span>
+                {% elif g.why == "In Csam, No Cloud Agent" %}<span class="badge sev-medium">{{ g.why }}</span>
+                {% else %}<span class="badge st-still_open">{{ g.why }}</span>{% endif %}
+                {% if g.asset %} <span class="muted mono" style="font-size: 11.5px">{{ g.asset }}</span>{% endif %}
+              </td>
+              <td class="mono nowrap">{{ g.host.last_scanned_at|date:"Y-m-d"|default:"—" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endif %}
+{% endblock %}

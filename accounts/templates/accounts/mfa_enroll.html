@@ -1,0 +1,38 @@
+{% extends "auth.html" %}
+
+{% block title %}Set Up Two-Factor Authentication{% endblock %}
+{% block card_class %}auth-wide{% endblock %}
+
+{% block content %}
+<h1>Set Up Two-Factor Authentication</h1>
+<p>
+  {% if required %}Your Role Requires Two-Factor Authentication Before You Can Continue.{% else %}Protect Your Account with a Code from an Authenticator App.{% endif %}
+  Scan the QR Code with Any Authenticator App (Google Authenticator, Microsoft Authenticator, 1Password, Aegis, ...).
+</p>
+
+<div class="qr">
+  <div class="qr-code">{{ qr_svg|safe }}</div>
+  <div>
+    <div class="muted" style="font-size: 12.5px">Can't Scan It? Enter This Key Manually:</div>
+    <div class="mono secret">{{ secret }}</div>
+  </div>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% if form.token.errors %}
+    <ul class="errors">{% for error in form.token.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+  {% endif %}
+  <label class="field">
+    6-Digit Code from the App
+    <input class="token-input" type="text" name="token" inputmode="numeric" autocomplete="one-time-code" maxlength="7" autofocus required>
+  </label>
+  <input type="hidden" name="next" value="{{ next }}">
+  <button class="btn btn-block" type="submit">Confirm and Continue</button>
+</form>
+
+<form method="post" action="{% url 'accounts:logout' %}" style="margin-top: 16px">
+  {% csrf_token %}
+  <button class="btn-link" type="submit">Log Out</button>
+</form>
+{% endblock %}

@@ -1,0 +1,7 @@
+{# Segmented All / <perimeter> ... switch; keeps the current page, replaces ?perimeter. #}
+<nav class="segmented" aria-label="Perimeter">
+  <a href="?" {% if not perimeter %}aria-current="true"{% endif %}>All Perimeters</a>
+  {% for p in perimeters %}
+    <a href="?perimeter={{ p.slug }}" {% if perimeter == p or perimeter == p.slug %}aria-current="true"{% endif %}>{{ p.name }}</a>
+  {% endfor %}
+</nav>

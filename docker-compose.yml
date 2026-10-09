@@ -1,0 +1,107 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    # The project folder's filesystem refuses chown, so Postgres runs as the
+    # folder's owner (uid 1000) instead of the image's postgres user.
+    user: "${PVM_UID:-1000}:${PVM_GID:-1000}"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-pvm}
+      POSTGRES_USER: ${POSTGRES_USER:-pvm}
+      # No default: Compose refuses to start without a password in .env.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pvm}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    restart: unless-stopped
+    # Migrations run here, once, before gunicorn starts. The worker and
+    # beat containers only read/write data, so they do not run migrate.
+    command: sh -c "python manage.py migrate --noinput && python manage.py priority_refresh && gunicorn pvm.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 180"
+    env_file:
+      - .env
+    volumes:
+      - ./data/scan_imports:/app/scan_imports
+      - ./data/backups:/app/backups_data
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - "8000"
+
+  # What users wait for: imports, a host's patch check (Ubuntu tracker or
+  # Rocky errata), the Qualys Csam / Pm searches, "Ask Server" ("celery" queue).
+  worker:
+    build: .
+    restart: unless-stopped
+    command: celery -A pvm worker -Q celery -n interactive@%h -O fair -l info
+    env_file:
+      - .env
+    volumes:
+      - ./data/scan_imports:/app/scan_imports
+      - ./data/backups:/app/backups_data
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Long refreshes (NVD, CISA KEV, EPSS, the nightly patch re-check, the
+  # priority recompute, the history snapshot) on their own queue, one at a
+  # time, so they never delay the worker above.
+  worker-background:
+    build: .
+    restart: unless-stopped
+    command: celery -A pvm worker -Q background -n background@%h --concurrency=1 -O fair -l info
+    env_file:
+      - .env
+    volumes:
+      - ./data/scan_imports:/app/scan_imports
+      - ./data/backups:/app/backups_data
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  beat:
+    build: .
+    restart: unless-stopped
+    command: celery -A pvm beat -l info
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      # PVM_LISTEN in .env: "8080" listens on every interface of the VM;
+      # "127.0.0.1:8080" or "<vm ip>:8080" restricts it to one address.
+      - "${PVM_LISTEN:-8080}:80"
+    depends_on:
+      - web
+

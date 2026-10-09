@@ -1,0 +1,17 @@
+{% comment %}
+A filter that takes several ticks, styled like a select. `name` is the query
+key (sent once per ticked value), `choices` (value, label) pairs, `chosen` the
+values in use as strings. The summary is written server-side too, so the field
+reads correctly before static/pvm/js/multi.js runs.
+{% endcomment %}
+<div class="field">
+  {{ label }}
+  <details class="multi">
+    <summary><span class="chosen">{% if not chosen %}All{% elif chosen|length == 1 %}{% for value, text in choices %}{% if value|stringformat:"s" in chosen %}{{ text }}{% endif %}{% endfor %}{% else %}{{ chosen|length }} Selected{% endif %}</span></summary>
+    <div class="options">
+      {% for value, text in choices %}
+        <label class="tick"><input type="checkbox" name="{{ name }}" value="{{ value }}"{% if value|stringformat:"s" in chosen %} checked{% endif %}> {{ text }}</label>
+      {% endfor %}
+    </div>
+  </details>
+</div>

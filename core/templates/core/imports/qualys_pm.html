@@ -1,0 +1,50 @@
+{% extends "app.html" %}
+{% load pvm %}
+
+{% block title %}Qualys Pm{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Qualys Pm</h1>
+    <p>Checks Your Windows Hosts' Open Findings against Qualys Patch Management: Which Patch (KB) Resolves the QID, and Whether Qualys Says It Is Missing or Installed. No Free Tracker Exists for Windows like Ubuntu's, So This Is Pvm's Source of Truth There; the Verdict Shows on Each Finding, Confirming It Still Needs a Person (See the Host Page).</p>
+  </div>
+</div>
+
+<section class="card">
+  {% if not configured %}
+    <div class="card-body notice-danger" style="border: 0"><strong>Qualys Pm Is Not Configured.</strong> <span class="muted">Set QUALYS_GATEWAY_URL, QUALYS_USERNAME and QUALYS_PASSWORD in .env (Same Credentials as Qualys Csam).</span></div>
+  {% else %}
+    {% include "core/imports/partials/pm_status.html" %}
+  {% endif %}
+</section>
+
+{% if search.state == "done" %}
+  <section class="card">
+    <div class="card-head">
+      <h2>Windows Hosts Checked</h2>
+      <span class="muted" style="font-size: 12.5px">{{ search.missing_count }} Vulnerable, Patch Missing · {{ search.fixed_count }} Fixed · {{ search.unknown_count }} Cannot Verify</span>
+    </div>
+    {% if rows %}
+      <div class="table-wrap">
+        <table>
+          <thead><tr>{% include "core/partials/sortable_headers.html" %}</tr></thead>
+          <tbody>
+            {% for r in rows %}
+              <tr>
+                <td><a href="{% url 'core:host_detail' r.host.pk %}?tab=vulnerabilities">{{ r.host.hostname }}</a><br><span class="mono muted" style="font-size: 11.5px">{{ r.host.ip_address }}</span></td>
+                <td class="num mono">{{ r.total }}</td>
+                <td class="num mono">{% if r.missing %}<strong style="color: var(--sev-critical)">{{ r.missing }}</strong>{% else %}0{% endif %}</td>
+                <td class="num mono">{{ r.fixed }}</td>
+                <td class="num mono">{{ r.unknown }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty">None of Your Windows Hosts Was Found in Qualys Patch Management, or Pvm Does Not Know Any Host's Operating System Yet (Imports &gt; Qualys Csam, or a Scan with an Operating System Column, Sets It).</div>
+    {% endif %}
+  </section>
+{% endif %}
+{% endblock %}

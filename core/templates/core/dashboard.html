@@ -1,0 +1,147 @@
+{% extends "app.html" %}
+{% load pvm %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Dashboard</h1>
+    <p>Open Findings Across All Hosts{% if perimeter %} {{ perimeter.name|lower }} Perimeter Only{% endif %}{% if recent_imports %}, Last Import {{ recent_imports.0.started_at|date:"j M Y, H:i" }}{% endif %}.</p>
+  </div>
+  <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap">
+    {% include "core/partials/perimeter_tabs.html" %}
+    <a class="btn btn-ghost" href="{% url 'core:vulnerability_list' %}">All Vulnerabilities</a>
+    {% if user|can_edit %}<a class="btn" href="{% url 'core:import_upload' %}">Import Report</a>{% endif %}
+  </div>
+</div>
+
+<section class="kpis" aria-label="Open Findings">
+  {% for k in severity_kpis %}
+    <a class="card kpi sev-{{ k.severity }}" href="{% url 'core:vulnerability_list' %}?severity={{ k.severity }}{% if perimeter %}&amp;perimeter={{ perimeter.slug }}{% endif %}" style="color: inherit; text-decoration: none">
+      <div class="kpi-label"><span class="swatch"></span>{{ k.label }}</div>
+      <div class="kpi-value">{{ k.count }}</div>
+      <div class="kpi-delta">
+        {% if k.delta is None %}No Previous Scan
+        {% elif k.delta > 0 %}<span class="up">▲ {{ k.delta }}</span> vs Previous Scan
+        {% elif k.delta < 0 %}<span class="down">▼ {{ k.delta_abs }}</span> vs Previous Scan
+        {% else %}No Change vs Previous Scan{% endif %}
+      </div>
+    </a>
+  {% endfor %}
+  <a class="card kpi st-needs_review" href="{% url 'core:vulnerability_list' %}?status=needs_review{% if perimeter %}&amp;perimeter={{ perimeter.slug }}{% endif %}" style="color: inherit; text-decoration: none">
+    <div class="kpi-label"><span class="swatch" style="--badge-color: var(--st-needs-review)"></span>Needs Review</div>
+    <div class="kpi-value">{{ needs_review }}</div>
+    <div class="kpi-delta">Awaiting Analyst Triage</div>
+  </a>
+  <div class="card kpi kpi-overdue">
+    <div class="kpi-label"><span class="swatch" style="--badge-color: var(--sev-critical)"></span>Overdue SLA</div>
+    <div class="kpi-value">{{ overdue }}</div>
+    <div class="kpi-delta">{{ due_soon }} Due in the Next 7 Days</div>
+  </div>
+</section>
+
+<div class="grid-2" style="margin-bottom: 16px">
+  <section class="card">
+    <div class="card-head">
+      <h2>Findings Detected per Scan</h2>
+      <span class="muted" style="font-size: 12.5px">Last {{ scan_count }} Completed Import{{ scan_count|pluralize }}{% if not perimeter %}, Each Point Sums the Latest Scan of Every Perimeter{% endif %} · Each Panel Has Its Own Scale</span>
+    </div>
+    <div class="card-body">
+      {% if scan_count %}
+        <div class="trends">
+          {% for k in severity_kpis %}{% with c=k.chart %}
+            <figure class="trend sev-{{ k.severity }}" style="margin: 0">
+              <figcaption class="trend-title">
+                <span><span class="swatch"></span> {{ k.label }}</span>
+                <span class="muted">Latest <span class="value">{{ c.last.value }}</span></span>
+              </figcaption>
+              <svg viewBox="0 0 {{ c.width }} {{ c.height }}" role="img" aria-label="{{ k.label }} Findings per Scan">
+                <line class="grid-line" x1="0" x2="{{ c.width }}" y1="{{ c.top_y }}" y2="{{ c.top_y }}"/>
+                <line class="grid-line" x1="0" x2="{{ c.width }}" y1="{{ c.baseline }}" y2="{{ c.baseline }}"/>
+                <text class="scale" x="0" y="{{ c.top_y|add:-2 }}">{{ c.top_value }}</text>
+                <path class="area" d="{{ c.area }}" fill="var(--badge-color)"/>
+                <path class="line" d="{{ c.line }}" stroke="var(--badge-color)"/>
+                {% for p in c.points %}
+                  <g class="hit-group">
+                    <rect class="hit" x="{{ p.hit_x }}" y="0" width="{{ c.hit_width }}" height="{{ c.height }}"/>
+                    <circle class="dot hover-dot" cx="{{ p.x }}" cy="{{ p.y }}" r="4" fill="var(--badge-color)"/>
+                    <title>{{ p.date|date:"j M Y" }}: {{ p.value }} {{ k.label|lower }}</title>
+                  </g>
+                {% endfor %}
+                <circle class="dot" cx="{{ c.last.x }}" cy="{{ c.last.y }}" r="4" fill="var(--badge-color)"/>
+              </svg>
+              <div class="axis"><span>{{ c.points.0.date|date:"j M" }}</span><span>{{ c.last.date|date:"j M" }}</span></div>
+            </figure>
+          {% endwith %}{% endfor %}
+        </div>
+        <details class="table-view">
+          <summary>View as Table</summary>
+          <div class="table-wrap" style="margin-top: 8px">
+            <table>
+              <thead><tr><th>Scan</th>{% for k in severity_kpis %}<th class="num">{{ k.label }}</th>{% endfor %}</tr></thead>
+              <tbody>
+                {% for row in trend_rows %}
+                  <tr>
+                    <td class="mono">{{ row.date|date:"Y-m-d" }}</td>
+                    {% for value in row.values %}<td class="num">{{ value }}</td>{% endfor %}
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      {% else %}
+        <div class="empty">No Completed Scan Imports Yet.</div>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Recent Imports</h2><a href="{% url 'core:import_list' %}" style="font-size: 13px">View All</a></div>
+    {% if recent_imports %}
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Import</th><th>Perimeter</th><th>Status</th><th class="num">Found</th></tr></thead>
+          <tbody>
+            {% for imp in recent_imports %}
+              <tr>
+                <td class="nowrap"><a href="{% url 'core:import_detail' imp.pk %}">{{ imp.label }}</a><div class="mono muted" style="font-size: 11.5px">{{ imp.started_at|date:"d M H:i" }}</div></td>
+                <td>{% include "core/partials/perimeter_badge.html" with perimeter=imp.perimeter %}</td>
+                <td><span class="badge imp-{{ imp.status }}" {% if imp.error_message %}title="{{ imp.error_message }}"{% endif %}>{{ imp.get_status_display }}</span></td>
+                <td class="num">{{ imp.findings_count }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty">No Imports Yet.</div>
+    {% endif %}
+  </section>
+</div>
+
+<section class="card">
+  <div class="card-head">
+    <h2>Top Priorities</h2>
+    <div style="display: flex; gap: 16px; align-items: center; font-size: 13px">
+      {% if kev_open %}<a href="{% url 'core:vulnerability_list' %}?kev=yes{% if perimeter %}&amp;perimeter={{ perimeter.slug }}{% endif %}"><span class="badge kev" title="Exploited in the Wild: Listed in the CISA Known Exploited Vulnerabilities Catalog">KEV</span> {{ kev_open }} Open Finding{{ kev_open|pluralize }} Exploited in the Wild</a>{% endif %}
+      {% if fixed_pending %}<a href="{% url 'core:vulnerability_list' %}?patch=fixed_pending{% if perimeter %}&amp;perimeter={{ perimeter.slug }}{% endif %}"><span class="badge st-resolved">{{ fixed_pending }}</span> Fixed by Installed Version, To Confirm</a>{% endif %}
+      {% if p1_open %}<a href="{% url 'core:vulnerability_list' %}?priority=1{% if perimeter %}&amp;perimeter={{ perimeter.slug }}{% endif %}"><span class="prio prio-1">P1</span> {{ p1_open }} to Fix Now</a>{% endif %}
+      <a href="{% url 'core:vulnerability_list' %}{% if perimeter %}?perimeter={{ perimeter.slug }}{% endif %}">View All</a>
+    </div>
+  </div>
+  {% if top_findings %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th title="Risk Priority, 0 to 100: CVSS, CISA KEV or EPSS, Internet Exposure and Age. Hover a Value for the Breakdown">Priority</th><th>Severity</th><th title="Qualys Severity, 1 to 5">Qualys</th><th title="Highest CVSS Base Score Among the CVEs, from NVD; Highest EPSS from FIRST Below It">CVSS / EPSS</th><th>CVE / QID</th><th>Title</th><th>Host</th><th>Perimeter</th><th>Team</th><th>Due</th><th>Status</th><th title="Verdict of the Ubuntu Tracker Check Against the Installed Packages">Patch Check</th></tr></thead>
+        <tbody>
+          {% for f in top_findings %}{% include "core/partials/finding_row.html" with show_host=True %}{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty">No Open Findings.</div>
+  {% endif %}
+</section>
+{% endblock %}

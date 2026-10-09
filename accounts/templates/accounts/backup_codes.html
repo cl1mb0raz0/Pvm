@@ -1,0 +1,22 @@
+{% extends "auth.html" %}
+
+{% block title %}Backup Codes{% endblock %}
+{% block card_class %}auth-wide{% endblock %}
+
+{% block content %}
+{% if codes %}
+  <h1>Save Your Backup Codes</h1>
+  <p>
+    Each Code Works Once, if You Lose Access to Your Authenticator App.
+    Store Them Somewhere Safe, Such as a Password Manager: <strong>They Will Not Be Shown Again.</strong>
+  </p>
+  <ul class="codes">
+    {% for code in codes %}<li>{{ code }}</li>{% endfor %}
+  </ul>
+  <a class="btn btn-block" href="{{ next }}">I've Saved Them, Continue</a>
+{% else %}
+  <h1>Backup Codes</h1>
+  <p>Backup Codes Are Only Shown Once, Right After They Are Generated. You Can Generate a New Set from Your Account Page.</p>
+  <a class="btn btn-block" href="{% url 'accounts:account' %}">Go to Account</a>
+{% endif %}
+{% endblock %}

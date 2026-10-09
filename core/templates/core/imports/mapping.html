@@ -1,0 +1,108 @@
+{% extends "app.html" %}
+
+{% block title %}Choose Columns{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="muted" style="font-size: 12.5px"><a href="{% url 'core:import_list' %}">Imports</a> / #{{ scan_import.pk }}</div>
+    <h1 style="margin-top: 4px">Choose the Columns to Import</h1>
+    <p>Step 2 of 2: <span class="mono">{{ scan_import.original_filename }}</span>, Scan Date {{ scan_import.scanned_at|date:"j M Y" }}.</p>
+  </div>
+</div>
+
+<section class="kpis" aria-label="File Contents" style="grid-template-columns: repeat(4, minmax(0, 1fr))">
+  <div class="card kpi"><div class="kpi-label">Rows</div><div class="kpi-value">{{ file.rows }}</div></div>
+  <div class="card kpi"><div class="kpi-label">Hosts (IP + Hostname)</div><div class="kpi-value">{{ file.host_count }}</div><div class="kpi-delta">On {{ file.ip_count }} IP Address{{ file.ip_count|pluralize:"es" }}</div></div>
+  <div class="card kpi"><div class="kpi-label">Columns</div><div class="kpi-value">{{ file.columns|length }}</div></div>
+  <div class="card kpi">
+    <div class="kpi-label">Rows by Type</div>
+    <div class="kpi-delta" style="margin-top: 8px; font-size: 13px">
+      {% for type, count in file.types.items %}<div><span class="mono">{{ type }}</span>: {{ count }}</div>{% empty %}<div>No “Type” Column</div>{% endfor %}
+    </div>
+  </div>
+</section>
+
+<form method="post">
+  {% csrf_token %}
+  {% if errors %}<ul class="errors" style="margin-bottom: 16px">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+
+  <section class="card card-body" style="margin-bottom: 16px">
+    <fieldset class="perimeter-choice">
+      <legend><strong>Where Was This Scan Run from?</strong> <span class="muted">(Required)</span></legend>
+      {% for p in perimeters %}
+        <label class="choice">
+          <input type="radio" name="perimeter" value="{{ p.slug }}" {% if selected_perimeter == p %}checked{% endif %} required>
+          <span><strong>{{ p.name }}</strong>{% if p.description %}<span class="muted"> · {{ p.description }}</span>{% endif %}</span>
+        </label>
+      {% endfor %}
+      <p class="muted" style="margin: 8px 0 0; font-size: 12.5px">
+        {% if file.public_ip_count is not None %}This File Has {{ file.public_ip_count }} Public and {{ file.private_ip_count }} Private IP Address{{ file.ip_count|pluralize:"es" }}{% if file.public_ip_count == 0 and file.private_ip_count %}: It Looks Like an <strong>Internal</strong> Scan{% elif file.private_ip_count == 0 and file.public_ip_count %}: It Looks Like an <strong>External</strong> Scan{% endif %}.{% endif %}
+        Findings Are Tracked per Perimeter, and This Import Only Resolves Findings of the Perimeter Chosen Here.
+      </p>
+    </fieldset>
+  </section>
+
+  <section class="card card-body" style="margin-bottom: 16px">
+    <fieldset class="perimeter-choice">
+      <legend><strong>Which Area Do These Hosts Belong to?</strong> <span class="muted">(Optional Tags, e.g. Alpha)</span></legend>
+      {% if all_tags %}
+        <div class="tag-choices">
+          {% for t in all_tags %}
+            <label class="choice tag-choice"><input type="checkbox" name="tag" value="{{ t.pk }}" {% if t.pk in selected_tags %}checked{% endif %}> <span class="tag">{{ t.name }}</span></label>
+          {% endfor %}
+        </div>
+      {% endif %}
+      <label class="field" style="max-width: 420px; margin-top: 8px">
+        New Tags, Comma-Separated
+        <input type="text" name="new_tags" value="{{ new_tags }}" maxlength="300" placeholder="e.g. Alpha, Sap">
+      </label>
+      <p class="muted" style="margin: 8px 0 0; font-size: 12.5px">
+        Every Host in This Report Gets These Tags; a Host Can Have Several, and Tags Are Never Removed by an Import.
+        {% if selected_tags and not new_tags %}Pre-Selected from the Last Import Named “{{ scan_import.name }}”.{% endif %}
+      </p>
+    </fieldset>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Columns Found in the File</h2>
+      <span class="muted" style="font-size: 12.5px">
+        IP Address, QID, Title and Severity Are Required. “Additional Data” Keeps the Value on the Finding As-Is.
+        Rows of Type {% for t in skipped_types %}<span class="mono">{{ t }}</span>{% if not forloop.last %}/{% endif %}{% endfor %} (Information Gathered) Are Not Vulnerabilities and Are Skipped.
+      </span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Column</th><th>Sample Values</th><th>Import As</th></tr></thead>
+        <tbody>
+          {% for row in rows %}
+            <tr>
+              <td class="nowrap"><strong>{{ row.name }}</strong></td>
+              <td class="samples">
+                {% for s in row.samples %}<div class="mono" title="{{ s }}">{{ s }}</div>{% empty %}<span class="muted">(Empty in the First Rows)</span>{% endfor %}
+              </td>
+              <td>
+                <select name="col-{{ row.index }}" aria-label="Import {{ row.name }} As">
+                  <option value="" {% if row.value == "" %}selected{% endif %}>Don't Import</option>
+                  <option value="{{ extra }}" {% if row.value == extra %}selected{% endif %}>Additional Data</option>
+                  <optgroup label="Pvm Field">
+                    {% for key, label, required in fields %}
+                      <option value="{{ key }}" {% if row.value == key %}selected{% endif %}>{{ label }}{% if required %} *{% endif %}</option>
+                    {% endfor %}
+                  </optgroup>
+                </select>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="results-meta sticky-actions" style="justify-content: flex-end; gap: 12px">
+      <button class="btn btn-ghost" type="submit" form="discard-form">Discard Upload</button>
+      <button class="btn" type="submit">Import {{ file.rows }} Rows</button>
+    </div>
+  </section>
+</form>
+<form id="discard-form" method="post" action="{% url 'core:import_discard' scan_import.pk %}">{% csrf_token %}</form>
+{% endblock %}

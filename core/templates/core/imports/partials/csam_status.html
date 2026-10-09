@@ -1,0 +1,21 @@
+{# The latest CSAM search; polls while it runs, then the page reloads with the results. #}
+<div id="csam-status" class="card-body" {% if running %}hx-get="{% url 'core:qualys_csam' %}" hx-trigger="every 4s" hx-target="#csam-status" hx-swap="outerHTML"{% endif %}>
+  <div class="ssh-head">
+    {% if not search %}
+      <span class="muted">No Search Yet. Pvm Reads Qualys Csam and Shows What It Knows about the Hosts You Already Have; Nothing Is Imported until You Choose.</span>
+    {% elif running %}
+      <span class="badge sev-medium"><span class="spinner" aria-hidden="true"></span> Searching Qualys Csam…</span>
+      <span class="muted" style="font-size: 12.5px">Started {{ search.started_at|date:"H:i" }}{% if search.started_by %} by {{ search.started_by.username }}{% endif %}. It Takes a Few Minutes; This Page Updates by Itself.</span>
+    {% elif search.state == "failed" %}
+      <span class="badge sev-critical">Search Failed</span> <span class="muted">{{ search.error }}</span>
+    {% else %}
+      <span class="badge st-resolved">Searched {{ search.finished_at|date:"j M Y, H:i" }}</span>
+      <span class="muted" style="font-size: 12.5px">{{ search.assets_seen }} Qualys Assets Read · {{ search.matched }} of Your {{ search.hosts_total }} Hosts Found{% if unmatched %} ({{ unmatched }} Not Found in CSAM){% endif %}{% if imported %} · {{ imported }} Already Imported{% endif %} · {{ search.api_calls }} API Calls</span>
+    {% endif %}
+    {% if configured and not running %}
+      <form method="post" action="{% url 'core:qualys_csam_search' %}" style="margin-left: auto">
+        {% csrf_token %}<button class="btn" type="submit">{% if search %}Search Again{% else %}Search Qualys Csam{% endif %}</button>
+      </form>
+    {% endif %}
+  </div>
+</div>

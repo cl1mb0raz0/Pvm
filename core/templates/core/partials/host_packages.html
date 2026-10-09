@@ -1,0 +1,113 @@
+{% load pvm %}
+<div class="inventory">
+  <section class="inventory-head">
+    <form method="post" action="{% url 'core:host_set_release' host.pk %}" class="inline-form">
+      {% csrf_token %}
+      {% if host.is_rocky %}
+        <label class="field">
+          Rocky Linux Release
+          <select name="rocky_release" {% if not user|can_edit %}disabled{% endif %} onchange="this.form.submit()">
+            <option value="" {% if not host.rocky_release %}selected{% endif %}>Not Set</option>
+            {% for value, label in rocky_releases %}<option value="{{ value }}" {% if host.rocky_release == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+        </label>
+      {% else %}
+        <label class="field">
+          Ubuntu Release
+          <select name="ubuntu_release" {% if not user|can_edit %}disabled{% endif %} onchange="this.form.submit()">
+            <option value="" {% if not host.ubuntu_release %}selected{% endif %}>Not Set</option>
+            {% for value, label in releases %}<option value="{{ value }}" {% if host.ubuntu_release == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+        </label>
+      {% endif %}
+      <noscript><button class="btn btn-ghost" type="submit">Save</button></noscript>
+    </form>
+    <div class="muted" style="font-size: 12.5px">
+      {{ package_count }} Package{{ package_count|pluralize }} Known{% if last_update %}, Last Change {{ last_update.updated_at|date:"j M Y, H:i" }}{% if last_update.created_by %} by {{ last_update.created_by.username }}{% endif %}{% endif %}.
+      Versions Come from the Server over SSH or from the Sysadmin; They Are Only as Current as Their Last Update.
+    </div>
+  </section>
+
+  {% include "core/partials/host_ssh.html" %}
+
+  {% if user|can_edit %}
+    <section class="ask-box">
+      <h3>Or Ask the Sysadmin</h3>
+      {% if missing_packages %}
+        <p>To Verify This Host's Open Findings Against {% if host.is_rocky %}Rocky Linux's Errata{% else %}the Ubuntu Tracker{% endif %}, Pvm Needs the Installed Version of:
+          {% for p in missing_packages %}<span class="mono chip">{{ p }}</span>{% endfor %}
+        </p>
+      {% elif host.ubuntu_release and package_count or host.rocky_release and package_count %}
+        <p class="muted">No Package Versions Are Missing for the Findings Checked so Far.</p>
+      {% endif %}
+      <p>Or, Simplest, Ask Them to Run This Read-Only Command (No Root Needed) on the Host and Send Back the Output; Paste It Below as Is:</p>
+      <div class="command">
+        <code id="inventory-command">{{ inventory_command }}</code>
+        <button class="btn btn-ghost btn-sm" type="button" onclick="navigator.clipboard.writeText(document.getElementById('inventory-command').textContent); this.textContent='Copied'">Copy</button>
+      </div>
+    </section>
+
+    <div class="inventory-forms">
+      <form method="post" action="{% url 'core:host_paste_inventory' host.pk %}" class="card-body stack" style="gap: 10px">
+        {% csrf_token %}
+        <label class="field">
+          Paste the Sysadmin's Answer
+          <textarea name="text" rows="6" class="mono" placeholder="apache2&#9;2.4.41-4ubuntu3.17&#9;apache2&#9;2.4.41-4ubuntu3.17&#10;or simply: apache2 2.4.41-4ubuntu3.17"></textarea>
+          <span class="hint">The Command's Output, <span class="mono">dpkg -l</span> Output, or One “Package Version” per Line as Written in an Email.</span>
+        </label>
+        <label class="choice" style="font-size: 13px">
+          <input type="checkbox" name="replace" value="1">
+          <span>This Is the Complete Package List: Remove Packages Not in It</span>
+        </label>
+        <div><button class="btn" type="submit">Save Packages</button></div>
+      </form>
+
+      <form method="post" action="{% url 'core:host_add_package' host.pk %}" class="card-body stack" style="gap: 10px">
+        {% csrf_token %}
+        <strong style="font-size: 13.5px">Add or Update One Package</strong>
+        <label class="field">Package<input type="text" name="package_name" placeholder="apache2" required></label>
+        <label class="field">Installed Version (Full)<input type="text" name="installed_version" class="mono" placeholder="2.4.41-4ubuntu3.17" required></label>
+        <label class="field">Source Package <span class="muted">(Optional, if Different: <span class="mono">openssh-server</span> → <span class="mono">openssh</span>)</span><input type="text" name="source_package" placeholder="openssh"></label>
+        {% if host.private_ip %}
+          <label class="choice" style="font-size: 13px">
+            <input type="checkbox" name="review_siblings" value="1">
+            <span>Then Review the Other Sites on the Same Server (Nothing Is Copied until You Confirm)</span>
+          </label>
+        {% endif %}
+        <div><button class="btn btn-ghost" type="submit">Save</button></div>
+      </form>
+    </div>
+  {% endif %}
+
+  {% if packages %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr>{% include "core/partials/sortable_headers.html" %}</tr></thead>
+        <tbody>
+          {% for p in packages %}
+            <tr>
+              <td class="mono">{{ p.package_name }}</td>
+              <td class="mono">{{ p.installed_version }}{% if p.source_version and p.source_version != p.installed_version %} <span class="muted">(source {{ p.source_version }})</span>{% endif %}</td>
+              <td class="mono muted">{{ p.source_package|default:"—" }}</td>
+              <td class="mono nowrap">{{ p.updated_at|date:"Y-m-d" }}</td>
+              <td class="muted">{{ p.get_source_display }}{% if p.created_by %} · {{ p.created_by.username }}{% endif %}</td>
+              <td>{% if p.patch_backported %}<span class="badge badge-verified">Verified: Patch Backported</span>{% endif %}</td>
+              <td>
+                {% if user|can_edit %}
+                  <div style="display: flex; gap: 12px; align-items: center">
+                  {% if host.private_ip %}<a href="{% url 'core:host_share_package' host.pk p.pk %}" class="nowrap" style="font-size: 12.5px" title="Copy This Package to the Other Sites on the Same Server (You Review First)">Apply to Other Sites</a>{% endif %}
+                  <form method="post" action="{% url 'core:host_delete_package' host.pk p.pk %}" onsubmit="return confirm('Remove {{ p.package_name }} from This Host?')">
+                    {% csrf_token %}<button class="btn-link" type="submit" style="color: var(--sev-critical)">Remove</button>
+                  </form>
+                  </div>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty">No Installed Packages Recorded for This Host Yet.</div>
+  {% endif %}
+</div>

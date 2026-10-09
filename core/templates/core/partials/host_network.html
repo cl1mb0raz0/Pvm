@@ -1,0 +1,72 @@
+{% load pvm %}
+<div class="card-body stack">
+  <form method="post" action="{% url 'core:host_update_network' host.pk %}" class="stack" style="gap: 16px; max-width: 640px">
+    {% csrf_token %}
+    <dl class="dl">
+      <dt>Scanned IP</dt>
+      <dd class="mono">{{ host.ip_address }} <span class="muted">(from the scans{% if same_ip_count > 1 %}, shared by {{ same_ip_count }} hosts{% endif %})</span></dd>
+    </dl>
+
+    <label class="field">
+      Private IP
+      <input type="text" name="private_ip" class="mono" value="{{ private_ips|join:', ' }}" placeholder="e.g. 10.0.20.11, 10.0.20.12" {% if not user|can_edit %}disabled{% endif %}>
+      <span class="hint">Internal Address of the Server That Actually Hosts This Site; Several, Separated by Commas, When a Pool Has More Servers. By Hand, or from Imports > Mapping; Scans Never Change It.</span>
+    </label>
+
+    {% if server_names %}
+      <dl class="dl">
+        <dt>Server</dt>
+        <dd class="mono">{{ server_names|join:", " }} <span class="muted">(the Name{{ server_names|length|pluralize:"s" }} on the Load Balancer)</span></dd>
+      </dl>
+    {% endif %}
+
+    <fieldset class="perimeter-choice">
+      <legend><strong>Load Balancer</strong></legend>
+      <label class="choice">
+        <input type="checkbox" name="is_balancer" value="1" {% if load_balancer %}checked{% endif %} {% if not user|can_edit %}disabled{% endif %}>
+        <span><span class="mono">{{ host.ip_address }}</span> Is a Load Balancer{% if same_ip_count > 1 %}: Applies to All {{ same_ip_count }} Hosts on This IP{% endif %}</span>
+      </label>
+      <label class="field" style="max-width: 280px">
+        Name
+        <input type="text" name="balancer_name" value="{{ load_balancer.name|default:'' }}" placeholder="e.g. A10" maxlength="100" {% if not user|can_edit %}disabled{% endif %}>
+      </label>
+    </fieldset>
+
+    {% if user|can_edit %}<div><button class="btn" type="submit">Save</button></div>{% endif %}
+  </form>
+
+  {% if reached_through or backend_of %}
+    <section style="border-top: 1px solid var(--border); padding-top: 16px">
+      {% if reached_through %}
+        <p style="margin: 0 0 6px"><strong>Reached Through the Load Balancer</strong> <span class="muted">(From the Stored Configuration)</span></p>
+        <p style="margin: 0; font-size: 13px">{{ reached_through.text }}</p>
+        <p class="muted" style="margin: 2px 0 0; font-size: 12.5px">Real Servers: <span class="mono">{{ reached_through.backends|join:", " }}</span></p>
+      {% endif %}
+      {% if backend_of %}
+        <p style="margin: {% if reached_through %}12px{% else %}0{% endif %} 0 6px"><strong>Real Server Behind the Load Balancer</strong></p>
+        <ul class="link-list">
+          {% for r in backend_of %}<li><span class="mono">{% if r.vip_ip %}{{ r.vip_name }} {{ r.vip_ip }}{% if r.port %}:{{ r.port }}{% endif %}{% else %}(No VIP){% endif %}</span>{% if r.pattern %} <span class="muted">Sites: {{ r.match }} {{ r.pattern }}</span>{% endif %} <span class="muted">· Pool</span> <span class="mono">{{ r.service_group }}</span></li>{% endfor %}
+        </ul>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  {% if internal_hosts or published_as %}
+    <section style="border-top: 1px solid var(--border); padding-top: 16px">
+      {% if internal_hosts %}
+        <p style="margin: 0 0 6px"><strong>Internal Scans of the Private IP{{ private_ips|length|pluralize:"s" }}</strong></p>
+        <ul class="link-list">
+          {% for h in internal_hosts %}<li><a href="{% url 'core:host_detail' h.pk %}">{{ h.hostname }}</a> <span class="mono muted">{{ h.ip_address }}</span></li>{% endfor %}
+        </ul>
+      {% endif %}
+      {% if published_as %}
+        <p style="margin: 12px 0 6px"><strong>Published Externally as</strong> <span class="muted">(Hosts Whose Private IP Is This One)</span></p>
+        <ul class="link-list">
+          {% for h in published_as %}<li><a href="{% url 'core:host_detail' h.pk %}">{{ h.hostname }}</a> <span class="mono muted">{{ h.ip_address }}</span></li>{% endfor %}
+        </ul>
+      {% endif %}
+    </section>
+  {% elif host.private_ip %}
+    <p class="muted" style="margin: 0; font-size: 12.5px">No Internal Scan Has Reported {{ private_ips|join:", " }} Yet.</p>
+  {% endif %}
+</div>

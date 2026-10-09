@@ -1,0 +1,47 @@
+{% extends "app.html" %}
+{% load pvm %}
+
+{% block title %}{{ scan_import.label }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="muted" style="font-size: 12.5px"><a href="{% url 'core:import_list' %}">Imports</a> / #{{ scan_import.pk }}</div>
+    <h1 style="margin-top: 4px">{{ scan_import.label }}{% if scan_import.name %} <span class="muted" style="font-size: 15px; font-weight: 500">#{{ scan_import.pk }}</span>{% endif %}</h1>
+    <dl class="host-meta">
+      <div><dt>Perimeter</dt><dd>{% include "core/partials/perimeter_badge.html" with perimeter=scan_import.perimeter %}</dd></div>
+      <div><dt>Source</dt><dd>{{ scan_import.get_source_display }}</dd></div>
+      <div><dt>File</dt><dd class="mono">{{ scan_import.original_filename|default:"—" }}</dd></div>
+      <div><dt>Scan Date</dt><dd class="mono">{{ scan_import.scanned_at|date:"Y-m-d"|default:"—" }}</dd></div>
+      <div><dt>Started</dt><dd class="mono">{{ scan_import.started_at|date:"Y-m-d H:i" }}</dd></div>
+      <div><dt>By</dt><dd>{% if scan_import.rule %}Automatic ({{ scan_import.rule.schedule_label }}){% else %}{{ scan_import.triggered_by.username|default:"—" }}{% endif %}</dd></div>
+      {% if scan_import.qualys_scan_ref %}
+        <div><dt>Qualys Scan</dt><dd class="mono">{{ scan_import.qualys_scan_ref }}</dd></div>
+        {% if scan_import.summary.qualys.scanner %}<div><dt>Scanner</dt><dd>{{ scan_import.summary.qualys.scanner|truncatechars:40 }}</dd></div>{% endif %}
+      {% endif %}
+      <div><dt>Tags</dt><dd>{% include "core/partials/tag_chips.html" %}{% if not tags %}<span class="muted">—</span>{% endif %}</dd></div>
+    </dl>
+  </div>
+  {% if user|can_edit %}
+    <form method="post" action="{% url 'core:import_rename' scan_import.pk %}" class="inline-form">
+      {% csrf_token %}
+      <label class="field">
+        Name
+        <input type="text" name="name" value="{{ scan_import.name }}" maxlength="100" placeholder="e.g. Internal Alpha">
+      </label>
+      <button class="btn btn-ghost" type="submit">Save Name</button>
+    </form>
+    <form method="post" action="{% url 'core:import_add_tags' scan_import.pk %}" class="inline-form">
+      {% csrf_token %}
+      <label class="field">
+        Add Tags{% if scan_import.status == "completed" %} (Also to Its Hosts){% endif %}
+        <input type="text" name="new_tags" maxlength="300" placeholder="e.g. Alpha" list="known-tags">
+        <datalist id="known-tags">{% for t in other_tags %}<option value="{{ t.name }}">{% endfor %}</datalist>
+      </label>
+      <button class="btn btn-ghost" type="submit">Add</button>
+    </form>
+  {% endif %}
+</div>
+
+{% include "core/imports/partials/status.html" %}
+{% endblock %}

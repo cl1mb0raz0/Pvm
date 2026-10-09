@@ -1,0 +1,55 @@
+{% extends "app.html" %}
+
+{% block title %}Apply to Other Sites{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Apply to Other Sites</h1>
+    <p>Copy <span class="mono">{{ package.package_name }} {{ package.installed_version }}</span> from <a href="{% url 'core:host_detail' host.pk %}?tab=packages">{{ host.hostname }}</a> to the Other Sites on the Same Private Server ({% for ip in host.all_private_ips %}<span class="mono">{{ ip }}</span>{% if not forloop.last %}, {% endif %}{% endfor %}). Nothing Is Written until You Confirm.</p>
+  </div>
+</div>
+
+<section class="card">
+  {% if rows %}
+    <form method="post">
+      {% csrf_token %}
+      <div class="filters" style="font-size: 13px">
+        <span><strong>{{ rows|length }}</strong> Site{{ rows|length|pluralize }} Found: {{ full_count }} on the Same Server{{ full_count|pluralize:",s" }}{% if partial_count %}, {{ partial_count }} Sharing Only Some of Its Servers{% endif %}.</span>
+        <span class="muted">Ticked for You: Sites with the Same Server(s) That Do Not Have This Package Yet. A Site with Another Version, or Sharing Only Some Servers, Is Left Unticked: Check It First.</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th class="select"><input type="checkbox" aria-label="Select All" onclick="document.querySelectorAll('input[name=host]').forEach(c => c.checked = this.checked)"></th>
+            <th>Site</th><th>IP</th><th>Private IPs</th><th>Same Server</th><th>{{ package.package_name }} Now</th>
+          </tr></thead>
+          <tbody>
+            {% for r in rows %}
+              <tr>
+                <td class="select"><input type="checkbox" name="host" value="{{ r.host.pk }}" {% if r.checked %}checked{% endif %} aria-label="Select {{ r.host.hostname }}"></td>
+                <td><a href="{% url 'core:host_detail' r.host.pk %}">{{ r.host.hostname }}</a>{% for t in r.host.tags.all %} <span class="tag">{{ t.name }}</span>{% endfor %}</td>
+                <td class="mono">{{ r.host.ip_address }}</td>
+                <td class="mono">{{ r.private_ips|join:", " }}</td>
+                <td>{% if r.full %}<span class="badge st-resolved">All Servers</span>{% else %}<span class="badge sev-medium">Only Some</span>{% endif %}</td>
+                <td style="font-size: 12.5px">
+                  {% if r.status == "new" %}<span class="muted">Not Recorded: Would Be Added</span>
+                  {% elif r.status == "same" %}<span class="muted">Already {{ r.current.installed_version }}: Nothing to Change</span>
+                  {% else %}<strong style="color: var(--sev-critical)">{{ r.current.installed_version }}</strong> <span class="muted">({{ r.current.get_source_display }}) Would Be Replaced</span>{% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="filters">
+        <button class="btn" type="submit">Apply to Selected Sites</button>
+        <a class="btn btn-ghost" href="{% url 'core:host_detail' host.pk %}?tab=packages">Cancel</a>
+        <span class="muted" style="font-size: 12.5px">Copied as a Manual Entry, Each in the Audit Log; the Patch Check Runs Again where It Applies.</span>
+      </div>
+    </form>
+  {% else %}
+    <div class="empty">No Other Active Site Shares a Private Server with {{ host.hostname }}{% if not host.private_ip %}: This Host Has No Private IP (Set It in the Network Tab, or from Imports &gt; Mapping){% endif %}.</div>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,51 @@
+{% load pvm %}{% with d=f.vulnerability_definition cves=f.vulnerability_definition.cves.all s=f.as_of %}
+<tr>
+  {% if selectable %}<td class="select"><input type="checkbox" name="finding" value="{{ f.pk }}" form="triage" aria-label="Select This Finding"></td>{% endif %}
+  <td class="nowrap">{% include "core/partials/priority_cell.html" %}</td>
+  <td>{% if s.severity %}<span class="badge sev-{{ s.severity }}" title="{{ s.note }}">{{ s.severity_label }}</span>{% else %}<span class="badge sev-{{ d.severity }}">{{ d.get_severity_display }}</span>{% endif %}</td>
+  <td class="nowrap">
+    {% if d.qualys_severity %}<span class="qlevel q{{ d.qualys_severity }}" title="Qualys Severity {{ d.get_qualys_severity_display }}">{{ d.qualys_severity }}</span> <span class="muted">{{ d.qualys_severity_name }}</span>{% else %}<span class="muted">—</span>{% endif %}
+  </td>
+  <td class="nowrap">
+    {% with c=d.nvd_cvss %}
+      {% if c %}
+        <span class="cvss cvss-{{ c.cvss_severity|lower }}" title="{{ c.cve_id }} · CVSS {{ c.cvss_version }} {{ c.cvss_severity|lower }} · {{ c.cvss_vector }} · Scored by {{ c.cvss_source|default:'unknown' }}">{{ c.cvss_score }}</span>
+        <span class="muted mono" style="font-size: 11px">v{{ c.cvss_version }}</span>
+      {% elif cves %}
+        <span class="muted" title="Not Scored in NVD Yet, or Not Fetched Yet">…</span>
+      {% else %}
+        <span class="muted" title="No CVE for This QID">—</span>
+      {% endif %}
+    {% endwith %}
+    {% with e=d.top_epss %}{% if e %}<div class="epss" title="EPSS (FIRST): {{ e.epss_score|pct }} Probability of Exploitation in the Next 30 Days, Higher Than {{ e.epss_percentile|pct }} of CVEs · {{ e.cve_id }} · {{ e.epss_date|date:'Y-m-d' }}">EPSS {{ e.epss_score|pct }}</div>{% endif %}{% endwith %}
+  </td>
+  <td class="mono nowrap">
+    {% if cves %}{{ cves.0.cve_id }}{% if cves|length > 1 %} <span class="muted">+{{ cves|length|add:"-1" }}</span>{% endif %}{% if f.in_kev %} <span class="badge kev" title="Exploited in the Wild: Listed in the CISA Known Exploited Vulnerabilities Catalog">KEV</span>{% endif %}<br>{% endif %}
+    <a class="muted" href="{% url 'core:vulnerability_detail' d.qid %}">QID {{ d.qid }}</a>
+  </td>
+  <td class="title-cell"><a href="{% url 'core:vulnerability_detail' d.qid %}" title="{{ d.title }}">{{ d.title }}</a></td>
+  {% if show_host %}
+    <td><a href="{% url 'core:host_detail' f.host_id %}">{{ f.host.hostname }}</a>{% if f.host.hostname != f.host.ip_address %}<br><span class="mono muted">{{ f.host.ip_address }}</span>{% endif %}{% with tags=f.host.tags.all %}{% if tags %}<div>{% include "core/partials/tag_chips.html" %}</div>{% endif %}{% endwith %}</td>
+  {% endif %}
+  {% if show_port %}<td class="mono nowrap">{{ f.service_port|default:"—" }}</td>{% endif %}
+  <td>{% include "core/partials/perimeter_badge.html" with perimeter=f.perimeter %}</td>
+  <td>{% if s.source == "snapshot" %}{% if s.team %}{{ s.team }}{% else %}<span class="muted">Unassigned</span>{% endif %}{% elif f.assigned_team %}{{ f.assigned_team }}{% else %}<span class="muted">Unassigned</span>{% endif %}</td>
+  <td class="mono nowrap {% if not s %}{{ f.due_date|due_class:today }}{% endif %}">{% if s.source == "snapshot" %}{{ s.due_date|date:"Y-m-d"|default:"—" }}{% else %}{{ f.due_date|date:"Y-m-d"|default:"—" }}{% endif %}</td>
+  <td>{% if s %}<span class="badge st-{{ s.status }}" title="{{ s.note }}">{{ s.status_label }}</span>{% else %}<span class="badge st-{{ f.status }}">{{ f.get_status_display }}</span>{% endif %}</td>
+  <td class="nowrap">
+    {% if s.source == "snapshot" %}
+      {% if s.patch_verdict %}<span class="badge {{ s.patch_verdict|verdict_class }}" title="Ubuntu Tracker Check on That Date · {{ s.note }}">{{ s.patch_verdict|verdict_short }}</span>
+      {% else %}<span class="muted" title="Not Checked Against the Ubuntu Tracker by That Date">—</span>{% endif %}
+    {% else %}
+    {% with check=f.patch_check v=f.distro_verification %}
+      {% if check %}
+        <span class="badge {{ check.verdict|verdict_class }}" title="Ubuntu Tracker Check: {{ check.get_verdict_display }}">{{ check.verdict|verdict_short }}</span>
+        {% if v.from_patch_check %}<div class="muted" style="font-size: 11px; margin-top: 2px">✓ Confirmed</div>{% elif check.is_not_vulnerable %}<div class="muted" style="font-size: 11px; margin-top: 2px">To Confirm</div>{% endif %}
+      {% else %}
+        <span class="muted" title="Not Checked Against the Ubuntu Tracker (No Release or Packages Entered, or No CVE)">—</span>
+      {% endif %}
+    {% endwith %}
+    {% endif %}
+  </td>
+</tr>
+{% endwith %}

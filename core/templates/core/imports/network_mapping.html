@@ -1,0 +1,83 @@
+{% extends "app.html" %}
+
+{% block title %}Mapping{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Mapping</h1>
+    <p>Which Internal Servers Run Each Site. Upload a File: Pvm Recognizes What It Is, Tells You What It Would Change and Whether It Is Useful, and Changes Nothing Until You Apply It.</p>
+  </div>
+</div>
+
+<section class="card">
+  <form method="post" action="{% url 'core:network_mapping_upload' %}" enctype="multipart/form-data" class="card-body stack" style="gap: 12px">
+    {% csrf_token %}
+    <label class="field">File (CSV or Text)<input type="file" name="file" accept=".csv,.txt,.cfg,.conf,text/csv,text/plain" required></label>
+    <p class="muted" style="margin: 0; font-size: 12.5px">
+      A Mapping Row Matches the Host Scanned on That Public IP with That Name (Without a Name, Only If That Public IP Has a Single Host).
+      From a Balancer Configuration, a Host Gets the Real Servers Behind It When Its Name Matches a Name Rule, When It Was Scanned on a VIP, or When Its Private IP Is a VIP.
+      A Pool with Several Servers Gives the Host All of Them. A Backup Is Taken Before Applying.
+    </p>
+    <div><button class="btn" type="submit">Upload and Analyze</button></div>
+  </form>
+
+  <div class="card-head" style="border-top: 1px solid var(--border)">
+    <h2>Stored Balancer Configurations</h2>
+    <span class="muted" style="font-size: 12.5px">Applied Also to Hosts That Appear in Later Imports</span>
+  </div>
+  {% if configs %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr>{% include "core/partials/sortable_headers.html" with headers=lb_headers %}</tr></thead>
+        <tbody>
+          {% for c in configs %}
+            <tr>
+              <td>{{ c.name }}</td>
+              <td class="mono muted">{{ c.product }}</td>
+              <td class="num">{{ c.counts.servers }}</td>
+              <td class="num">{{ c.counts.service_groups }}</td>
+              <td class="num">{{ c.counts.vips }}</td>
+              <td class="num">{{ c.counts.rules }}</td>
+              <td class="mono muted">{{ c.filename|default:"—" }}</td>
+              <td class="muted nowrap">{{ c.uploaded_at|date:"j M Y, H:i" }}{% if c.uploaded_by %} · {{ c.uploaded_by.username }}{% endif %}</td>
+              <td style="text-align: right">
+                <form method="post" action="{% url 'core:balancer_config_delete' c.pk %}" onsubmit="return confirm('Delete This Balancer Configuration? Private IPs Already Set on Hosts Are Kept.')">
+                  {% csrf_token %}<button class="btn-link" type="submit" style="color: var(--sev-critical)">Delete</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty">No Balancer Configuration Uploaded Yet.</div>
+  {% endif %}
+
+  <div class="card-head" style="border-top: 1px solid var(--border)">
+    <h2>Stored IP Mapping</h2>
+    <span class="muted" style="font-size: 12.5px">{{ stored_count }} Row{{ stored_count|pluralize }}{% if last_upload %} · Last Upload {{ last_upload|date:"j M Y, H:i" }}{% endif %} · Applied Also to Hosts That Appear in Later Imports</span>
+  </div>
+  {% if stored %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr>{% include "core/partials/sortable_headers.html" %}</tr></thead>
+        <tbody>
+          {% for m in stored %}
+            <tr><td class="mono">{{ m.public_ip }}</td><td class="mono">{{ m.hostname|default:"(Any)" }}</td><td class="mono">{{ m.private_ip }}</td><td class="muted">{{ m.uploaded_by.username|default:"—" }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="results-meta">
+      <span>{% if stored_count > shown %}First {{ shown }} of {{ stored_count }}{% else %}{{ stored_count }} Row{{ stored_count|pluralize }}{% endif %}</span>
+      <form method="post" action="{% url 'core:network_mapping_clear' %}" onsubmit="return confirm('Clear the Stored Mapping? Private IPs Already Set on Hosts Are Kept.')">
+        {% csrf_token %}<button class="btn-link" type="submit" style="color: var(--sev-critical)">Clear Stored Mapping</button>
+      </form>
+    </div>
+  {% else %}
+    <div class="empty">Nothing Uploaded Yet.</div>
+  {% endif %}
+</section>
+{% endblock %}

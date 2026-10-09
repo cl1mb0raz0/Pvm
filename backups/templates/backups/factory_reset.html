@@ -1,0 +1,47 @@
+{% extends "app.html" %}
+
+{% block title %}Factory Reset{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="muted" style="font-size: 12.5px"><a href="{% url 'backups:list' %}">Backups</a> / Factory Reset</div>
+    <h1 style="margin-top: 4px">Factory Reset</h1>
+    <p>Empty Pvm Completely, as a Fresh Installation.</p>
+  </div>
+</div>
+
+<section class="card card-body stack" style="max-width: 760px">
+  <div class="verification" style="border-left-color: var(--sev-critical); margin: 0">
+    <p style="margin: 0; white-space: normal"><strong>This Deletes Everything and Cannot Be Undone:</strong></p>
+    <ul style="margin: 6px 0 0; padding-left: 18px">
+      <li>{{ counts.Host }} Host{{ counts.Host|pluralize }}, {{ counts.VulnerabilityFinding }} Finding{{ counts.VulnerabilityFinding|pluralize }}, {{ counts.ScanImport }} Import{{ counts.ScanImport|pluralize }} and All Related Data</li>
+      <li><strong>All {{ backup_count }} Backup{{ backup_count|pluralize }}</strong>, Files Included, and the Uploaded Report Files</li>
+      <li>{% if user_count > 1 %}The Other {{ user_count|add:"-1" }} User{{ user_count|add:"-1"|pluralize }}, {% endif %}Teams, SLA Policies, the Audit Log and the CVE Cache</li>
+    </ul>
+    <p style="margin: 8px 0 0; white-space: normal">To Keep a Copy, <a href="{% url 'backups:list' %}">Download a Backup</a> First and Store It Off the VM.</p>
+  </div>
+
+  <form method="post" class="stack" style="gap: 12px">
+    {% csrf_token %}
+    {% if error %}<ul class="errors"><li>{{ error }}</li></ul>{% endif %}
+    <label class="choice" style="font-size: 13.5px">
+      <input type="checkbox" name="delete_own_account" value="1">
+      <span>Also Delete My Own Account <span class="muted">(Then Nobody Can Sign In Until Someone Runs <span class="mono">createsuperuser</span> on the Server)</span></span>
+    </label>
+    <label class="field">
+      Code from Your Authenticator App
+      <input class="token-input" type="text" name="token" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required style="max-width: 200px">
+    </label>
+    <label class="field">
+      Type {{ confirmation }} to Confirm
+      <input type="text" name="confirm" autocomplete="off" required style="max-width: 280px">
+    </label>
+    <div style="display: flex; gap: 8px">
+      <button class="btn btn-danger" type="submit">Delete Everything</button>
+      <a class="btn btn-ghost" href="{% url 'backups:list' %}">Cancel</a>
+    </div>
+    <p class="muted" style="margin: 0; font-size: 12.5px">You Will Be Signed Out Afterwards.</p>
+  </form>
+</section>
+{% endblock %}

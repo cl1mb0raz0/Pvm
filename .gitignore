@@ -1,0 +1,33 @@
+# Secrets: keep .env out of the repository, always.
+.env
+.env.*
+!.env.example
+
+# Data: backups, raw Qualys reports, local databases, project snapshots.
+# They hold real hosts, addresses and findings.
+backups_data/
+scan_imports/
+snapshots/
+/data/
+*.sqlite3
+*.zip
+*.tar.gz
+*.json.gz
+
+# Real Qualys exports: only the synthetic fixture in core/fixtures/ belongs here.
+*.csv
+!core/fixtures/*.csv
+
+# Generated
+__pycache__/
+*.pyc
+staticfiles/
+.venv/
+venv/
+
+# Local tools and editors
+.claude/settings.local.json
+.idea/
+.vscode/
+*.swp
+.DS_Store

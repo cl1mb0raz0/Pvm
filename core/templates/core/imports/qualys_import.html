@@ -1,0 +1,53 @@
+{% extends "app.html" %}
+
+{% block title %}Import from Qualys{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="muted" style="font-size: 12.5px"><a href="{% url 'core:import_list' %}">Imports</a> / <a href="{% url 'core:qualys_scans' %}">Qualys Scans</a></div>
+    <h1 style="margin-top: 4px">Import “{{ scan.title }}”</h1>
+    <p>Launched {{ scan.launched_at|date:"j M Y, H:i" }} · {{ scan.type }} · {{ scan.target_count }} Target{{ scan.target_count|pluralize }} · Duration {{ scan.duration }}</p>
+  </div>
+</div>
+
+<form method="post">
+  {% csrf_token %}
+  <input type="hidden" name="ref" value="{{ scan.ref }}">
+  {% if error %}<ul class="errors" style="margin-bottom: 16px"><li>{{ error }}</li></ul>{% endif %}
+
+  <section class="card card-body stack" style="gap: 16px; margin-bottom: 16px">
+    <label class="field" style="max-width: 420px">
+      Import Name
+      <input type="text" name="name" value="{{ request.POST.name|default:scan.title }}" maxlength="100">
+    </label>
+
+    <fieldset class="perimeter-choice">
+      <legend><strong>Where Was This Scan Run from?</strong> <span class="muted">(Required)</span></legend>
+      {% for p in perimeters %}
+        <label class="choice">
+          <input type="radio" name="perimeter" value="{{ p.slug }}" {% if selected_perimeter == p.slug %}checked{% endif %} required>
+          <span><strong>{{ p.name }}</strong>{% if p.description %}<span class="muted"> · {{ p.description }}</span>{% endif %}</span>
+        </label>
+      {% endfor %}
+      <p class="muted" style="margin: 8px 0 0; font-size: 12.5px">
+        {% if scan.perimeter_guess %}Pre-Selected from the Scan's Targets ({% if scan.perimeter_guess == "external" %}Public Addresses or Host Names{% else %}Private Addresses{% endif %}).{% else %}The Targets Mix Private and Public Addresses: Choose.{% endif %}
+        The Import Also Checks Which Scanner Ran It (Qualys' External Scanners or Your Appliance) and Warns If It Disagrees.
+      </p>
+    </fieldset>
+
+    <fieldset class="perimeter-choice">
+      <legend><strong>Which Area Do These Hosts Belong to?</strong> <span class="muted">(Optional Tags)</span></legend>
+      {% include "core/partials/tag_picker.html" %}
+    </fieldset>
+
+    <p class="muted" style="margin: 0; font-size: 12.5px">
+      The Results Are Downloaded from Qualys, Archived, and Imported with the Same Columns as Your Last Import. A Backup Is Taken First, as for Every Import.
+    </p>
+    <div style="display: flex; gap: 8px">
+      <button class="btn" type="submit">Import</button>
+      <a class="btn btn-ghost" href="{% url 'core:qualys_scans' %}">Cancel</a>
+    </div>
+  </section>
+</form>
+{% endblock %}
