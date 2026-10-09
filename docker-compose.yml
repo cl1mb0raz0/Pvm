@@ -1,3 +1,8 @@
+# Fixed project name: containers, network and image names do not depend on
+# the folder this file is in (a moved folder once left two stacks writing
+# the same data/postgres).
+name: pvm
+
 services:
   db:
     image: postgres:16-alpine
