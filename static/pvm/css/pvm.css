@@ -532,3 +532,5 @@ select {
 .host-link { white-space: nowrap; }
 /* Qualys level name next to its number: only where the width is to spare. */
 @media (max-width: 1700px) { .qname { display: none; } }
+.cvss-gap-error { color: var(--sev-medium); font-weight: 600; cursor: help; }
+.cvss-gap-pending { cursor: progress; }

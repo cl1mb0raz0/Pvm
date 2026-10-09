@@ -453,6 +453,22 @@ class VulnerabilityDefinition(models.Model):
         return max(scored, key=lambda c: c.cvss_score, default=None)
 
     @property
+    def nvd_gap(self):
+        """Why `nvd_cvss` is empty although the QID has CVEs: (kind, explanation,
+        glyph) for the table cell. "pending" is the only one that will change
+        by itself; the others say there is nothing to wait for."""
+        cves = list(self.cves.all())
+        if not settings.NVD_ENABLED:
+            return ("off", "NVD Lookups Are Turned Off (NVD_ENABLED)", "—")
+        if any(c.nvd_status == Cve.NvdStatus.PENDING for c in cves):
+            return ("pending", "Waiting for the Next NVD Refresh", "…")
+        if any(c.nvd_status == Cve.NvdStatus.ERROR for c in cves):
+            return ("error", "The Last NVD Lookup Failed: " + (next((c.nvd_error for c in cves if c.nvd_error), "") or "See the CVE"), "!")
+        if all(c.nvd_status == Cve.NvdStatus.NOT_FOUND for c in cves):
+            return ("none", "Not in NVD", "—")
+        return ("none", "NVD Has No CVSS Score for This CVE", "—")
+
+    @property
     def top_epss(self):
         """The CVE with the highest EPSS among this definition's CVEs (uses prefetched `cves`)."""
         scored = [c for c in self.cves.all() if c.epss_score is not None]

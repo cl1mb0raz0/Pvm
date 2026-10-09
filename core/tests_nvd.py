@@ -98,6 +98,31 @@ class RefreshTests(TestCase):
             result = refresh_nvd.apply().get()
         self.assertEqual(result["ok"], 1)
 
+    def test_empty_cvss_cell_says_why(self):
+        definition = VulnerabilityDefinition.objects.create(qid="2", title="t", severity="high", qualys_severity=4)
+        cve = Cve.objects.create(cve_id="CVE-9")
+        definition.cves.add(cve)
+
+        def gap():
+            return VulnerabilityDefinition.objects.get(pk=definition.pk).nvd_gap
+
+        self.assertEqual(gap()[0], "pending")
+        cve.nvd_status = Cve.NvdStatus.ERROR
+        cve.nvd_error = "HTTP 503"
+        cve.save()
+        self.assertEqual(gap()[0], "error")
+        self.assertIn("HTTP 503", gap()[1])
+        cve.nvd_status = Cve.NvdStatus.NOT_FOUND
+        cve.save()
+        self.assertEqual(gap()[:2], ("none", "Not in NVD"))
+        cve.nvd_status = Cve.NvdStatus.OK
+        cve.save()
+        self.assertEqual(gap()[1], "NVD Has No CVSS Score for This CVE")
+        cve.nvd_status = Cve.NvdStatus.PENDING
+        cve.save()
+        with override_settings(NVD_ENABLED=False):
+            self.assertEqual(gap()[0], "off")
+
     def test_definition_shows_its_highest_cvss(self):
         definition = VulnerabilityDefinition.objects.create(qid="1", title="t", severity="high", qualys_severity=4)
         definition.cves.add(

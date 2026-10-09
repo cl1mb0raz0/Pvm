@@ -12,7 +12,7 @@
         <span class="cvss cvss-{{ c.cvss_severity|lower }}" title="{{ c.cve_id }} · CVSS {{ c.cvss_version }} {{ c.cvss_severity|lower }} · {{ c.cvss_vector }} · Scored by {{ c.cvss_source|default:'unknown' }}">{{ c.cvss_score }}</span>
         <span class="muted mono" style="font-size: 11px">v{{ c.cvss_version }}</span>
       {% elif cves %}
-        <span class="muted" title="Not Scored in NVD Yet, or Not Fetched Yet">…</span>
+        {% with gap=d.nvd_gap %}<span class="muted cvss-gap cvss-gap-{{ gap.0 }}" title="{{ gap.1 }}">{{ gap.2 }}</span>{% endwith %}
       {% else %}
         <span class="muted" title="No CVE for This QID">—</span>
       {% endif %}
